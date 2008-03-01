@@ -48,7 +48,7 @@ sub generate {
     return @statements;
 }
 
-sub run {
+sub run_script {
     my $self = shift;
     my $step = shift;
     my $connection = shift || $self->connection;
@@ -56,6 +56,8 @@ sub run {
     my @statements = $self->generate($step);
     my $dbh = $connection->connect;
     for (@statements) {
+        chomp;
+        warn "$_\n" if 1;
         $dbh->do($_) or die $dbh->errstr;
     }
     $dbh->disconnect;
@@ -80,9 +82,59 @@ sub _template_process {
     return \$output;
 }
 
+sub created {
+    my $self = shift;
+    return 1; # Safest to do nothing
+}
+
+sub populated {
+    my $self = shift;
+    return 1; # Safest to do nothing
+}
+
 sub create {
     my $self = shift;
-    return $self->run("create", @_);
+    return $self->run_script("create", @_);
+}
+
+sub populate {
+    my $self = shift;
+    return $self->run_script("populate", @_) if $self->{configure}->{populate};
+}
+
+sub setup {
+    my $self = shift;
+}
+
+sub teardown {
+    my $self = shift;
+}
+
+sub deploy {
+    my $self = shift;
+
+    my $connection = $self->connection;
+
+    if ($connection->connectable) {
+        my $dbh = $connection->connect;
+        if ($self->created($connection, $dbh)) {
+            unless ($self->populated($connection, $dbh)) {
+                $self->populate;
+            }
+        }
+        else {
+            $self->create;
+            $self->populate;
+        }
+        $dbh->disconnect;
+    }
+    else {
+        $self->setup;
+        $self->create;
+        $self->populate;
+    }
+
+    return $connection->information;
 }
 
 1;

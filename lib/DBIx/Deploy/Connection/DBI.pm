@@ -3,11 +3,12 @@ package DBIx::Deploy::Connection::DBI;
 use strict;
 use warnings;
 
-use DBI;
-use Object::Tiny qw/engine source database username password attributes/;
+use Moose;
 
-sub new {
-    my $self = bless {}, shift;
+extends qw/DBIx::Deploy::Connection/;
+
+sub parse {
+    my $class = shift;
     my $engine = shift;
 
     my ($database, $username, $password, $attributes);
@@ -23,14 +24,7 @@ sub new {
 
     my $source = "dbi:" . $engine->driver . ":dbname=$database";
 
-    @$self{qw/engine source database username password attributes/} = ($engine, $source, $database, $username, $password, $attributes);
-
-    return $self;
-}
-
-sub connect {
-    my $self = shift;
-    return DBI->connect($self->information);
+    return $class->new(engine => $engine, source => $source, database => $database, username => $username, password => $password, attributes => $attributes, @_);
 }
 
 sub information {

@@ -4,39 +4,29 @@ use warnings;
 use strict;
 
 use Moose;
-extends qw/DBIx::Deploy::Engine/;
-
-use DBIx::Deploy::Connection::DBI;
+extends qw/DBIx::Deploy::Engine::DBISuTdConnection/;
 
 sub driver {
     return "Pg";
 }
 
-has sutd_connection => qw/is ro required 1 lazy 1/, default => sub {
+sub created {
     my $self = shift;
-    return DBIx::Deploy::Connection::DBI->new($self, $self->{configure}->{sutd_connection});
-};
+    my ($connection, $dbh) = @_;
 
-has connection => qw/is ro required 1 lazy 1/, default => sub {
-    my $self = shift;
-    return DBIx::Deploy::Connection::DBI->new($self, $self->{configure}->{connection});
-};
+    my $created = $dbh->selectrow_arrayref('SELECT COUNT(*) FROM pg_database WHERE datname = ?', undef, $connection->database)->[0];
+    return 0 unless $created;
 
-after _generate_prepare_context => sub {
-    my $self = shift;
-    my $context = shift;
-
-    $context->{sutd_connection} = $self->sutd_connection;
-};
-
-sub setup {
-    my $self = shift;
-    return $self->run("setup", $self->sutd_connection, @_);
+    $created = $dbh->selectrow_arrayref('SELECT COUNT(*) FROM pg_tables WHERE tablename = ?', undef, 'deploy_test')->[0];
+    return $created;
 }
 
-sub teardown {
+sub populated {
     my $self = shift;
-    return $self->run("teardown", $self->sutd_connection, @_);
+    my ($connection, $dbh) = @_;
+
+    my $populated = $dbh->selectrow_arrayref('SELECT COUNT(*) FROM deploy_test')->[0];
+    return $populated > 0 ? 1 : 0;
 }
 
 1;

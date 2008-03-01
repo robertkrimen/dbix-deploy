@@ -3,11 +3,12 @@ package DBIx::Deploy::Connection::SQLite;
 use strict;
 use warnings;
 
-use DBI;
-use Object::Tiny qw/engine source database username password attributes/;
+use Moose;
 
-sub new {
-    my $self = bless {}, shift;
+extends qw/DBIx::Deploy::Connection/;
+
+sub parse {
+    my $class = shift;
     my $engine = shift;
 
     my ($database, $attributes);
@@ -21,23 +22,7 @@ sub new {
         die;
     }
 
-    my $source = "dbi:" . $engine->driver . ":dbname=$database";
-
-    @$self{qw/engine source database username password attributes/} = ($engine, $source, $database, undef, undef, $attributes);
-
-    return $self;
-}
-
-sub connect {
-    my $self = shift;
-    return DBI->connect($self->information);
-}
-
-sub information {
-    my $self = shift;
-    my @information = ($self->source, $self->username, $self->password, $self->attributes);
-    return wantarray ? @information : \@information;
+    return $class->SUPER::parse($engine => [ $database, undef, undef, $attributes) ]);
 }
 
 1;
-

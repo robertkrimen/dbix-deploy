@@ -70,30 +70,10 @@ CREATE TABLE deploy_test (
 _END_
 ]);
 
-{
-    my $dbh = $deploy->sutd_connection->connect;
-    ok($dbh);
+$deploy->setup;
 
-    for ($deploy->generate("teardown")) {
-        $dbh->do($_) or die $dbh->errstr;
-    }
+$deploy->create;
 
-    for ($deploy->generate("setup")) {
-        $dbh->do($_) or die $dbh->errstr;
-    }
-
-    $dbh->disconnect;
-}
-
-{
-    my $dbh = $deploy->connection->connect;
-    ok($dbh);
-
-    for ($deploy->generate("create")) {
-        $dbh->do($_) or die $dbh->errstr;
-    }
-
-    $dbh->disconnect;
-}
+$deploy->teardown;
 
 1;

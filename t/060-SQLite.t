@@ -6,8 +6,6 @@ use Test::More qw/no_plan/;
 use Test::Deep;
 use DBIx::Deploy::Engine::SQLite;
 
-unlink "./deploy.db" or warn $!;
-
 my $deploy = DBIx::Deploy::Engine::SQLite->new(configure => {
     connection => {
         database => "./deploy.db",
@@ -37,15 +35,10 @@ CREATE TABLE deploy_test (
 _END_
 ]);
 
-{
-    my $dbh = $deploy->connection->connect;
-    ok($dbh);
+$deploy->setup;
 
-    for ($deploy->generate("create")) {
-        $dbh->do($_) or die $dbh->errstr;
-    }
+$deploy->create;
 
-    $dbh->disconnect;
-}
+$deploy->teardown;
 
 1;
