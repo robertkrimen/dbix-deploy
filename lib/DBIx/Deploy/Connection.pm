@@ -68,6 +68,11 @@ sub run {
     $dbh->disconnect;
 }
 
+sub exists {
+    my $self = shift;
+    return $self->connectable;
+}
+
 sub connectable {
     my $self = shift;
 

@@ -27,7 +27,7 @@ has script => qw/is ro required 1 lazy 1/, default => sub {
 };
 
 has template => qw/is ro required 1 lazy 1/, default => sub {
-    return Template->new;
+    return Template->new({});
 };
 
 has stash => qw/is ro/;
@@ -119,7 +119,7 @@ sub deploy {
 
     my $connection = $self->connection;
 
-    if ($connection->connectable) {
+    if ($connection->exists) {
         if ($self->created($connection)) {
             unless ($self->populated($connection)) {
                 $self->populate;

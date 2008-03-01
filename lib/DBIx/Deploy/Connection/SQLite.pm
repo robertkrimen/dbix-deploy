@@ -7,6 +7,11 @@ use Moose;
 
 extends qw/DBIx::Deploy::Connection/;
 
+sub exists {
+    my $self = shift;
+    return -f $self->database && -s _ ? 1 : 0;
+}
+
 sub parse {
     my $class = shift;
     my $engine = shift;
@@ -21,7 +26,7 @@ sub parse {
         shift;
     }
     else {
-        die;
+        die @_;
     }
 
     return $class->SUPER::parse($engine => [ $database, undef, undef, $attributes ]);
