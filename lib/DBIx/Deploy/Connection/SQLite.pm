@@ -14,15 +14,17 @@ sub parse {
     my ($database, $attributes);
     if (ref $_[0] eq "ARRAY") {
         ($database, $attributes) = @{ $_[0] };
+        shift;
     }
     elsif (ref $_[0] eq "HASH") {
         ($database, $attributes) = @{ $_[0] }{qw/database attributes/};
+        shift;
     }
     else {
         die;
     }
 
-    return $class->SUPER::parse($engine => [ $database, undef, undef, $attributes) ]);
+    return $class->SUPER::parse($engine => [ $database, undef, undef, $attributes ]);
 }
 
 1;

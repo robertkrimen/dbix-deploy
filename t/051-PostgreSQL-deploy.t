@@ -35,48 +35,43 @@ ok($deploy);
 #);
 #--
 #_END_
+
+#    populate => \<<_END_,
+#INSERT INTO deploy_test VALUES ('bye world');
+#--
+#_END_
 #});
 
 ok($deploy);
 
-is(${ $deploy->generate("setup") }, <<_END_);
-CREATE DATABASE deploy;
---
-CREATE USER deploy;
-_END_
-cmp_deeply([ $deploy->generate("setup") ], [
-    "CREATE DATABASE deploy;",
-    "CREATE USER deploy;",
-]);
+ok(! $deploy->connection->connectable);
 
-is(${ $deploy->generate("teardown") }, <<_END_);
-DROP DATABASE deploy;
---
-DROP USER deploy;
-_END_
-cmp_deeply([ $deploy->generate("teardown") ], [
-    "DROP DATABASE deploy;",
-    "DROP USER deploy;",
-]);
+$deploy->deploy;
 
-is(${ $deploy->generate("create") }, <<_END_);
-CREATE TABLE deploy_test (
-    hello_world     TEXT
-);
---
-_END_
-cmp_deeply([ $deploy->generate("create") ], [
-    (local $_ = <<_END_) && chomp && $_,
-CREATE TABLE deploy_test (
-    hello_world     TEXT
-);
-_END_
-]);
+ok($deploy->connection->connectable);
+
+$deploy->teardown;
+
+ok(! $deploy->connection->connectable);
 
 $deploy->setup;
 
-$deploy->create;
+ok($deploy->connection->connectable);
+
+$deploy->deploy;
+
+{
+    my $dbh = $deploy->connection->connect;
+    my $value;
+    $value = $dbh->selectrow_arrayref('SELECT COUNT(*) FROM deploy_test')->[0];
+    is($value, 1);
+    $value = $dbh->selectrow_arrayref('SELECT * FROM deploy_test')->[0];
+    is($value, "bye world");
+    $dbh->disconnect;
+}
 
 $deploy->teardown;
+
+ok(! $deploy->connection->connectable);
 
 1;

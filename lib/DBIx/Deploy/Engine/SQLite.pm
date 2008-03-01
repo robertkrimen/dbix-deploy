@@ -8,9 +8,13 @@ extends qw/DBIx::Deploy::Engine/;
 
 use DBIx::Deploy::Connection::SQLite;
 
+__PACKAGE__->configure({
+    connection_class => "DBIx::Deploy::Connection::SQLite",
+});
+
 has connection => qw/is ro required 1 lazy 1/, default => sub {
     my $self = shift;
-    return DBIx::Deploy::Connection::SQLite->new($self, $self->{configure}->{connection});
+    return $self->stash->{connection_class}->parse($self, $self->stash->{connection});
 };
 
 sub driver {

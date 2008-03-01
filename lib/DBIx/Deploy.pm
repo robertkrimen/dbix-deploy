@@ -15,6 +15,25 @@ Version 0.01
 
 our $VERSION = '0.01';
 
+use Class::Inspector;
+use Carp;
+
+sub create {
+    my $class = shift;
+    local %_ = @_;
+
+    my $engine = delete $_{engine};
+
+    my $engine_class = $engine;
+    $engine_class = "DBIx::Deploy::Engine::$engine" unless $engine_class =~ s/^\+//;
+    
+    unless (Class::Inspector->loaded($engine_class)) {
+        eval "require $engine_class;" or croak "Couldn't find engine: $engine_class: $@";
+    }
+
+    return $engine_class->new(configure => $_{configure} || $_{config});
+}
+
 =head1 AUTHOR
 
 Robert Krimen, C<< <rkrimen at cpan.org> >>

@@ -4,13 +4,18 @@ use warnings;
 use strict;
 
 use Moose;
-use base qw/Class::Data::Inheritable/;
+use base qw/Class::Accessor::Grouped/;
 
 use Template;
 use SQL::Script;
 use Carp;
+use DBIx::Deploy::Connection;
+use DBIx::Deploy::Stash;
 
-__PACKAGE__->mk_classdata(qw/_configure/);
+__PACKAGE__->mk_group_accessors(inherited => qw/_base_stash/);
+__PACKAGE__->configure({
+    connection_class => "DBIx::Deploy::Connection",
+});
 
 sub driver {
     my $self = shift;
@@ -18,17 +23,21 @@ sub driver {
 }
 
 has script => qw/is ro required 1 lazy 1/, default => sub {
-    return SQL::Script->new(split_by => qr/\n--\n/);
+    return SQL::Script->new(split_by => qr/\n\s*--\n/);
 };
 
 has template => qw/is ro required 1 lazy 1/, default => sub {
     return Template->new;
 };
 
+has stash => qw/is ro/;
+
 sub BUILD {
     my $self = shift;
     my $new = shift;
-    $self->{configure} = $new->{configure};
+    my $configure = $new->{configure} || {};
+    my $stash = $self->configure($configure);
+    $self->{stash} = $stash;
     return $self;
 }
 
@@ -39,7 +48,8 @@ sub generate {
 
     $self->_generate_prepare_context($context);
 
-    my $script = $self->_template_process($self->{configure}->{$step}, $context);
+    my $input = $self->stash->{$step} or croak "Don't have a script for $step";
+    my $script = $self->_template_process($input, $context);
 
     return $script unless wantarray;
 
@@ -54,13 +64,7 @@ sub run_script {
     my $connection = shift || $self->connection;
 
     my @statements = $self->generate($step);
-    my $dbh = $connection->connect;
-    for (@statements) {
-        chomp;
-        warn "$_\n" if 1;
-        $dbh->do($_) or die $dbh->errstr;
-    }
-    $dbh->disconnect;
+    $connection->run(@statements);
 }
 
 sub _generate_prepare_context {
@@ -99,7 +103,7 @@ sub create {
 
 sub populate {
     my $self = shift;
-    return $self->run_script("populate", @_) if $self->{configure}->{populate};
+    return $self->run_script("populate", @_) if $self->stash->{populate};
 }
 
 sub setup {
@@ -116,9 +120,8 @@ sub deploy {
     my $connection = $self->connection;
 
     if ($connection->connectable) {
-        my $dbh = $connection->connect;
-        if ($self->created($connection, $dbh)) {
-            unless ($self->populated($connection, $dbh)) {
+        if ($self->created($connection)) {
+            unless ($self->populated($connection)) {
                 $self->populate;
             }
         }
@@ -126,7 +129,7 @@ sub deploy {
             $self->create;
             $self->populate;
         }
-        $dbh->disconnect;
+        $connection->disconnect;
     }
     else {
         $self->setup;
@@ -135,6 +138,21 @@ sub deploy {
     }
 
     return $connection->information;
+}
+
+sub information {
+    my $self = shift;
+    local %_ = @_;
+    $_{deploy} = 1 unless exists $_{deploy};
+    $self->deploy if $_{deploy};
+    return $self->connection->information;
+}
+
+sub configure {
+    my $self = shift;
+    my $override = shift;
+    my $base = $self->_base_stash || {};
+    return $self->_base_stash(DBIx::Deploy::Stash->merge($base, $override));
 }
 
 1;
