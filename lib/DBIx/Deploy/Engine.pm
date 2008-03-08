@@ -117,11 +117,9 @@ sub teardown {
 sub deploy {
     my $self = shift;
 
-    my $connection = $self->connection;
-
-    if ($connection->exists) {
-        if ($self->created($connection)) {
-            unless ($self->populated($connection)) {
+    if ($self->exists) {
+        if ($self->created) {
+            unless ($self->populated) {
                 $self->populate;
             }
         }
@@ -129,7 +127,6 @@ sub deploy {
             $self->create;
             $self->populate;
         }
-        $connection->disconnect;
     }
     else {
         $self->setup;
@@ -137,7 +134,9 @@ sub deploy {
         $self->populate;
     }
 
-    return $connection->information;
+    $self->connection->disconnect;
+
+    return $self->connection->information;
 }
 
 sub information {

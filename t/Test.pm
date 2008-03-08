@@ -19,7 +19,7 @@ sub deploy {
     },
 
     setup => \<<_END_,
-CREATE DATABASE [% connection.database %];
+CREATE DATABASE [% connection.database %] WITH TEMPLATE template0;
 --
 CREATE USER [% connection.username %];
 _END_

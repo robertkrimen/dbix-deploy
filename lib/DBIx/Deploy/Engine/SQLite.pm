@@ -21,8 +21,9 @@ sub driver {
     return "SQLite";
 }
 
-sub verify {
+sub exists {
     my $self = shift;
+    return $self->connection->exists;
 }
 
 after teardown => sub {

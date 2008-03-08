@@ -1,4 +1,4 @@
-package DBIx::Deploy::Engine::DBISuTdConnection;
+package DBIx::Deploy::Engine::SuTdConnection;
 
 use warnings;
 use strict;
@@ -67,6 +67,11 @@ around create => sub {
     if ($self->stash->{create_after}) {
         $self->run_script("create_after", $self->intermediate_connection);
     }
+};
+
+after deploy => sub {
+    my $self = shift;
+    $self->sutd_connection->disconnect;
 };
 
 1;

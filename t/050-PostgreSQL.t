@@ -40,12 +40,12 @@ ok($deploy);
 ok($deploy);
 
 is(${ $deploy->generate("setup") }, <<_END_);
-CREATE DATABASE deploy;
+CREATE DATABASE deploy WITH TEMPLATE template0;
 --
 CREATE USER deploy;
 _END_
 cmp_deeply([ $deploy->generate("setup") ], [
-    "CREATE DATABASE deploy;",
+    "CREATE DATABASE deploy WITH TEMPLATE template0;",
     "CREATE USER deploy;",
 ]);
 
