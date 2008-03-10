@@ -93,16 +93,30 @@ sub run_script {
 
     while (@script) {
         croak "A null step in script \"$name\"?" unless my $step = shift @script;
+        if (ref $step eq "SCALAR") {
+            unshift @script, $step;
+            $step = "user";
+        }
         if (ref $step eq "") {
             my $connection = $self->connection($step);
             my @statements = $self->generate(shift @script);
             $connection->run(@statements);
         }
+        elsif (ref $step eq "ARRAY") {
+            my ($database, $username, $password, $attributes) = @$step;
+            $database = $self->connection($1)->database if $database && $database =~ m/^\$(.*)$/;
+            $username = $self->connection($1)->username if $username && $username =~ m/^\$(.*)$/;
+            $password = $self->connection($1)->password if $password && $password =~ m/^\$(.*)$/;
+            $attributes = $self->connection($1)->attributes if $attributes && $attributes =~ m/^\$(.*)$/;
+            my $connection = $self->stash->{connection_class}->parse($self, [ $database, $username, $password, $attributes ]);
+            my @statements = $self->generate(shift @script);
+            $connection->run(@statements);
+        }
         elsif (ref $step eq "CODE") {
-            $step->($self);
+            $step->($self, \@script);
         }
         else {
-            croak "Don't understand $step";
+            croak "Don't understand script step $step";
         }
     }
 }
