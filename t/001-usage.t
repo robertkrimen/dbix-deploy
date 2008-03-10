@@ -12,20 +12,24 @@ use t::Test;
         engine => "PostgreSQL",
 
         configure => {
-            sutd_connection => [ qw/template1 postgres/ ],
 
             connection => {
-                database => "deploy",
-                username => "deploy",
+                superuser => [ qw/template1 postgres/ ],
+
+                user => {
+                    database => "deploy",
+                    username => "deploy",
+                    password => "deploy",
+                },
             },
 
-            setup => \<<_END_,
+            setup => [ qw/superuser/, \<<_END_ ],
 CREATE DATABASE [% connection.database %] WITH TEMPLATE template0;
 --
-CREATE USER [% connection.username %];
+CREATE USER [% connection.username %] WITH PASSWORD '[% connection.password %]';
 _END_
 
-            teardown => \<<_END_,
+            teardown => [ qw/superuser/, \<<_END_ ],
 DROP DATABASE [% connection.database %];
 --
 DROP USER [% connection.username %];

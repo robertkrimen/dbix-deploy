@@ -11,20 +11,24 @@ package t::Test::PostgreSQL;
 
 sub deploy {
     return DBIx::Deploy::Engine::PostgreSQL->new(configure => {
-    sutd_connection => [ qw/template1 postgres/ ],
-
     connection => {
-        database => "deploy",
-        username => "deploy",
+        superuser => [ qw/template1 postgres/ ],
+
+        user => {
+            database => "deploy",
+            username => "deploy",
+            password => "deploy",
+        },
     },
 
-    setup => \<<_END_,
-CREATE DATABASE [% connection.database %] WITH TEMPLATE template0;
+    setup => [ qw/superuser/ => \<<_END_ ],
+CREATE USER [% connection.username %] WITH PASSWORD 'deploy';
 --
-CREATE USER [% connection.username %];
+CREATE DATABASE [% connection.database %] WITH TEMPLATE template0 OWNER = [% connection.username %];
+--
 _END_
 
-    teardown => \<<_END_,
+    teardown => [ qw/superuser/ => \<<_END_ ],
 DROP DATABASE [% connection.database %];
 --
 DROP USER [% connection.username %];
@@ -51,7 +55,9 @@ package t::Test::SQLite;
 sub deploy {
     return DBIx::Deploy::Engine::SQLite->new(configure => {
     connection => {
-        database => "./deploy.db",
+        user => {
+            database => "./deploy.db",
+        },
     },
 
     create => \<<_END_,
@@ -63,6 +69,8 @@ _END_
     });
 }
 
+1;
+
 package t::Test::Deploy::PostgreSQL;
 
 use Moose;
@@ -70,20 +78,24 @@ use Moose;
 extends qw/DBIx::Deploy::Engine::PostgreSQL/;
 
 __PACKAGE__->configure({
-    sutd_connection => [ qw/template1 postgres/ ],
-
     connection => {
-        database => "deploy",
-        username => "deploy",
+        superuser => [ qw/template1 postgres/ ],
+
+        user => {
+            database => "deploy",
+            username => "deploy",
+            password => "deploy",
+        },
     },
 
-    setup => \<<_END_,
-CREATE DATABASE [% connection.database %];
+    setup => [ qw/superuser/ => \<<_END_ ],
+CREATE USER [% connection.username %] WITH PASSWORD 'deploy';
 --
-CREATE USER [% connection.username %];
+CREATE DATABASE [% connection.database %] WITH TEMPLATE template0 OWNER = [% connection.username %];
+--
 _END_
 
-    teardown => \<<_END_,
+    teardown => [ qw/superuser/ => \<<_END_ ],
 DROP DATABASE [% connection.database %];
 --
 DROP USER [% connection.username %];

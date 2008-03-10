@@ -9,63 +9,38 @@ use t::Test;
 my $deploy = t::Test::PostgreSQL->deploy;
 ok($deploy);
 
-#my $deploy = DBIx::Deploy::Engine::PostgreSQL->new(configure => {
-#    sutd_connection => [ qw/template1 postgres/ ],
-
-#    connection => {
-#        database => "deploy",
-#        username => "deploy",
-#    },
-
-#    setup => \<<_END_,
-#CREATE DATABASE [% connection.database %];
-#--
-#CREATE USER [% connection.username %];
-#_END_
-
-#    teardown => \<<_END_,
-#DROP DATABASE [% connection.database %];
-#--
-#DROP USER [% connection.username %];
-#_END_
-
-#    create => \<<_END_,
-#CREATE TABLE deploy_test (
-#    hello_world     TEXT
-#);
-#--
-#_END_
-#});
-
-ok($deploy);
-
-is(${ $deploy->generate("setup") }, <<_END_);
-CREATE DATABASE deploy WITH TEMPLATE template0;
+my $setup = sub { $deploy->generate($deploy->stash->{setup}->[1]) };
+is(${ $setup->() }, <<_END_);
+CREATE USER deploy WITH PASSWORD 'deploy';
 --
-CREATE USER deploy;
+CREATE DATABASE deploy WITH TEMPLATE template0 OWNER = deploy;
+--
 _END_
-cmp_deeply([ $deploy->generate("setup") ], [
-    "CREATE DATABASE deploy WITH TEMPLATE template0;",
-    "CREATE USER deploy;",
+cmp_deeply([ $setup->() ], [
+    "CREATE USER deploy WITH PASSWORD 'deploy';",
+    "CREATE DATABASE deploy WITH TEMPLATE template0 OWNER = deploy;",
 ]);
 
-is(${ $deploy->generate("teardown") }, <<_END_);
+
+my $teardown = sub { $deploy->generate($deploy->stash->{teardown}->[1]) };
+is(${ $teardown->() }, <<_END_);
 DROP DATABASE deploy;
 --
 DROP USER deploy;
 _END_
-cmp_deeply([ $deploy->generate("teardown") ], [
+cmp_deeply([ $teardown->() ], [
     "DROP DATABASE deploy;",
     "DROP USER deploy;",
 ]);
 
-is(${ $deploy->generate("create") }, <<_END_);
+my $create = sub { $deploy->generate($deploy->stash->{create}) };
+is(${ $create->() }, <<_END_);
 CREATE TABLE deploy_test (
     hello_world     TEXT
 );
 --
 _END_
-cmp_deeply([ $deploy->generate("create") ], [
+cmp_deeply([ $create->() ], [
     (local $_ = <<_END_) && chomp && $_,
 CREATE TABLE deploy_test (
     hello_world     TEXT

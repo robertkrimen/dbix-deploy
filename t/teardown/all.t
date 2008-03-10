@@ -7,14 +7,13 @@ use Test::Deep;
 use DBIx::Deploy::Engine::PostgreSQL;
 
 my $deploy = DBIx::Deploy::Engine::PostgreSQL->new(configure => {
-    sutd_connection => [ qw/template1 postgres/ ],
 
     connection => {
-        database => "deploy",
-        username => "deploy",
+        user => [ qw/deploy deploy deploy/ ],
+        superuser => [ qw/template1 postgres/ ],
     },
 
-    teardown => \<<_END_,
+    teardown => [ superuser => \<<_END_ ],
 DROP DATABASE [% connection.database %];
 --
 DROP USER [% connection.username %];

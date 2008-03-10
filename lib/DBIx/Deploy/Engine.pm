@@ -30,7 +30,18 @@ has template => qw/is ro required 1 lazy 1/, default => sub {
     return Template->new({});
 };
 
+has _connection => qw/is ro required 1 lazy 1/, default => sub { {} };
+
 has stash => qw/is ro/;
+
+sub connection {
+    my $self = shift;
+    my $name = shift;
+    $name = "user" unless defined $name;
+    return $self->_connection->{$name} ||= do {
+        $self->stash->{connection_class}->parse($self, $self->stash->{connection}->{$name});
+    };
+}
 
 sub BUILD {
     my $self = shift;
@@ -43,12 +54,13 @@ sub BUILD {
 
 sub generate {
     my $self = shift;
-    my $step = shift;
+    my $input = shift;
     my $context = shift || {};
 
     $self->_generate_prepare_context($context);
 
-    my $input = $self->stash->{$step} or croak "Don't have a script for $step";
+    croak "Don't have a template" unless $input;
+    croak "Don't understand template \"$input\"" unless ref $input eq "SCALAR";
     my $script = $self->_template_process($input, $context);
 
     return $script unless wantarray;
@@ -58,21 +70,41 @@ sub generate {
     return @statements;
 }
 
-sub run_script {
-    my $self = shift;
-    my $step = shift;
-    my $connection = shift || $self->connection;
-
-    my @statements = $self->generate($step);
-    $connection->run(@statements);
-}
-
 sub _generate_prepare_context {
     my $self = shift;
     my $context = shift;
 
     $context->{engine} = $self;
     $context->{connection} = $self->connection;
+}
+
+sub run_script {
+    my $self = shift;
+    my $name = shift;
+
+    my @script;
+    croak "Don't have a script called $name" unless my $script = $self->stash->{$name};
+    if (ref $script eq "ARRAY") {
+        @script = @$script;
+    }
+    else {
+        @script = (qw/user/, $script);
+    }
+
+    while (@script) {
+        croak "A null step in script \"$name\"?" unless my $step = shift @script;
+        if (ref $step eq "") {
+            my $connection = $self->connection($step);
+            my @statements = $self->generate(shift @script);
+            $connection->run(@statements);
+        }
+        elsif (ref $step eq "CODE") {
+            $step->($self);
+        }
+        else {
+            croak "Don't understand $step";
+        }
+    }
 }
 
 sub _template_process {
@@ -98,7 +130,7 @@ sub populated {
 
 sub create {
     my $self = shift;
-    return $self->run_script("create", @_);
+    return $self->run_script("create", @_) if $self->stash->{create};
 }
 
 sub populate {
@@ -108,10 +140,12 @@ sub populate {
 
 sub setup {
     my $self = shift;
+    return $self->run_script("setup", @_) if $self->stash->{setup};
 }
 
 sub teardown {
     my $self = shift;
+    return $self->run_script("teardown", @_) if $self->stash->{teardown};
 }
 
 sub deploy {

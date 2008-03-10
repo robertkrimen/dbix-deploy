@@ -4,7 +4,7 @@ use warnings;
 use strict;
 
 use Moose;
-extends qw/DBIx::Deploy::Engine::SuTdConnection/;
+extends qw/DBIx::Deploy::Engine/;
 
 sub driver {
     return "Pg";
@@ -12,7 +12,7 @@ sub driver {
 
 sub exists {
     my $self = shift;
-    my $result = $self->sutd_connection->select_value('SELECT COUNT(*) FROM pg_database WHERE datname = ?', $self->connection->database);
+    my $result = $self->connection(qw/superuser/)->select_value('SELECT COUNT(*) FROM pg_database WHERE datname = ?', $self->connection->database);
     return $result > 0 ? 1 : 0;
 }
 
