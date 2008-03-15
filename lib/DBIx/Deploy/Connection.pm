@@ -5,6 +5,7 @@ use warnings;
 
 use Moose;
 use DBI;
+use Carp::Clan;
 
 has engine => qw/is ro required 1 weak_ref 1/;
 has $_ => qw/is ro/ for qw/source database username password attributes/;
@@ -51,6 +52,14 @@ sub parse {
         die;
     }
 
+    $database = $engine->connection($1)->database if $database && ! ref $database && $database =~ m/^\$(.*)$/;
+    $username = $engine->connection($1)->username if $username && ! ref $username && $username =~ m/^\$(.*)$/;
+    $password = $engine->connection($1)->password if $password && ! ref $password && $password =~ m/^\$(.*)$/;
+    $attributes = $engine->connection($1)->attributes if $attributes && ! ref $attributes && $attributes =~ m/^\$(.*)$/;
+    for ($database, $username, $password, $attributes) {
+        $_ = $$_ if ref $_ eq "SCALAR";
+    }
+
     my $source = "dbi:" . $engine->driver . ":dbname=$database";
 
     return $class->new(engine => $engine, source => $source, database => $database, username => $username, password => $password, attributes => $attributes, @_);
@@ -60,6 +69,11 @@ sub run {
     my $self = shift;
 
     my $dbh = $self->connect;
+    unless ($dbh) {
+        no warnings 'uninitialized';
+        my @information = $self->information;
+        croak "Unable to connect with (@information): ", DBI->errstr unless $dbh;
+    }
     for my $statement (@_) {
         chomp $statement;
         warn "$statement\n" if 1;

@@ -39,7 +39,12 @@ sub connection {
     my $name = shift;
     $name = "user" unless defined $name;
     return $self->_connection->{$name} ||= do {
-        $self->stash->{connection_class}->parse($self, $self->stash->{connection}->{$name});
+        my $connection = $self->stash->{connection}->{$name};
+        if (! $connection && $name eq "superuser") {
+            $connection = [ qw/$user $superdatabase $superdatabase $user/ ],
+        }
+        croak "Don't have a connection definition for $name" unless $connection;
+        $self->stash->{connection_class}->parse($self, $connection);
     };
 }
 
@@ -48,7 +53,40 @@ sub BUILD {
     my $new = shift;
     my $configure = $new->{configure} || {};
     my $stash = $self->configure($configure);
+
+    $stash->{connection} ||= {};
+    $stash->{script} ||= {};
+
+    for (qw/user superuser superdatabase/) {
+        if (exists $stash->{$_}) {
+            my $value = delete $stash->{$_};
+            $stash->{connection}->{$_} = $value unless exists $stash->{connection}->{$_}
+        }
+    }
+
+    for (qw/setup teardown create populate/) {
+        if (exists $stash->{$_}) {
+            my $value = delete $stash->{$_};
+            $stash->{script}->{$_} = $value unless exists $stash->{script}->{$_}
+        }
+    }
+
     $self->{stash} = $stash;
+
+    if ($self->{template}) {
+        if (ref $self->{template} eq "" || (blessed $self->{template} && $self->{template}->isa("Path::Class::Dir"))) {
+            $self->{template} = Template->new({ INCLUDE_PATH => $self->{template} });
+        }
+        elsif (ref $self->{template} eq "HASH") {
+            $self->{template} = Template->new($self->{template});
+        }
+        elsif (blessed $self->{template} && $self->{template}->isa("Template")) {
+        }
+        else {
+            croak "Don't understand how to use $self->{template} for templating"
+        }
+    }
+
     return $self;
 }
 
@@ -60,7 +98,7 @@ sub generate {
     $self->_generate_prepare_context($context);
 
     croak "Don't have a template" unless $input;
-    croak "Don't understand template \"$input\"" unless ref $input eq "SCALAR";
+    croak "Don't understand template \"$input\"" unless ref $input eq 'SCALAR' || ref $input eq '';
     my $script = $self->_template_process($input, $context);
 
     return $script unless wantarray;
@@ -81,42 +119,60 @@ sub _generate_prepare_context {
 sub run_script {
     my $self = shift;
     my $name = shift;
+    local %_ = @_;
 
-    my @script;
-    croak "Don't have a script called $name" unless my $script = $self->stash->{$name};
-    if (ref $script eq "ARRAY") {
-        @script = @$script;
+    my $default_connection = $_{connection} || $self->connection;
+
+    my $script = $self->stash->{script}->{$name};
+    unless ($script) {
+        return if $_{nonexistent_is_okay};
+        croak "Don't have a script called $name";
     }
-    else {
-        @script = (qw/user/, $script);
-    }
+
+    my @script = ref $script eq "ARRAY" ? @$script : ($script);
 
     while (@script) {
-        croak "A null step in script \"$name\"?" unless my $step = shift @script;
-        if (ref $step eq "SCALAR") {
-            unshift @script, $step;
-            $step = "user";
+
+        my $connection = $default_connection;
+
+STEP:
+        croak "A null step in script \"$name\"?" unless defined (my $step = shift @script);
+
+        if (ref $step eq '') {
+            if ($step =~ s/^~//) {
+                $connection = $self->connection($step);
+                goto STEP if @script;
+            }
+            elsif ($step =~ m/^!exec$/i) {
+                croak "Uhh, not ready yet";
+            }
+            elsif ($step =~ m/::/i) {
+                # DBIx::Class::Schema
+                croak "Uhh, not ready yet";
+            }
+            elsif ($step =~ m/[\/\.]/) {
+                my @statements = $self->generate($step);
+                $connection->run(@statements);
+            }
+            else {
+                croak "Don't understand step: $step";
+            }
         }
-        if (ref $step eq "") {
-            my $connection = $self->connection($step);
-            my @statements = $self->generate(shift @script);
+        elsif (ref $step eq 'SCALAR') {
+            my @statements = $self->generate($step);
             $connection->run(@statements);
         }
-        elsif (ref $step eq "ARRAY") {
-            my ($database, $username, $password, $attributes) = @$step;
-            $database = $self->connection($1)->database if $database && $database =~ m/^\$(.*)$/;
-            $username = $self->connection($1)->username if $username && $username =~ m/^\$(.*)$/;
-            $password = $self->connection($1)->password if $password && $password =~ m/^\$(.*)$/;
-            $attributes = $self->connection($1)->attributes if $attributes && $attributes =~ m/^\$(.*)$/;
-            my $connection = $self->stash->{connection_class}->parse($self, [ $database, $username, $password, $attributes ]);
-            my @statements = $self->generate(shift @script);
-            $connection->run(@statements);
-        }
-        elsif (ref $step eq "CODE") {
+        elsif (ref $step eq 'CODE') {
             $step->($self, \@script);
         }
+        elsif (ref $step eq 'ARRAY') {
+            for (@$step) {
+                my @statements = $self->generate($step);
+                $connection->run(@statements);
+            }
+        }
         else {
-            croak "Don't understand script step $step";
+            croak "Don't understand step: $step";
         }
     }
 }
@@ -142,24 +198,32 @@ sub populated {
     return 1; # Safest to do nothing
 }
 
+sub _superdatabase_or_super_or_user_connection {
+    my $self = shift;
+    for (qw/superdatabase superuser user/) {
+        return $self->connection($_) if $self->stash->{connection}->{$_};
+    }
+    croak "Urgh, don't have any connection to return";
+}
+
 sub create {
     my $self = shift;
-    return $self->run_script("create", @_) if $self->stash->{create};
+    return $self->run_script("create", nonexistent_is_okay => 1, @_);
 }
 
 sub populate {
     my $self = shift;
-    return $self->run_script("populate", @_) if $self->stash->{populate};
+    return $self->run_script("populate", nonexistent_is_okay => 1, @_);
 }
 
 sub setup {
     my $self = shift;
-    return $self->run_script("setup", @_) if $self->stash->{setup};
+    return $self->run_script("setup", nonexistent_is_okay => 1, connection => $self->_superdatabase_or_super_or_user_connection, @_);
 }
 
 sub teardown {
     my $self = shift;
-    return $self->run_script("teardown", @_) if $self->stash->{teardown};
+    return $self->run_script("teardown", nonexistent_is_okay => 1, connection => $self->_superdatabase_or_super_or_user_connection, @_);
 }
 
 sub deploy {

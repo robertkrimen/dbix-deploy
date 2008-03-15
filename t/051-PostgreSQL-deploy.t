@@ -1,10 +1,12 @@
-#!perl -w
-
 use strict;
+use warnings;
 
-use Test::More qw/no_plan/;
+use Test::More;
 use Test::Deep;
 use t::Test;
+
+plan qw/skip_all/ => t::Test->no_PostgreSQL_reason and exit unless t::Test->can_PostgreSQL;
+plan qw/no_plan/;
 
 my $deploy = t::Test::PostgreSQL->deploy;
 ok($deploy);
@@ -34,6 +36,8 @@ $deploy->deploy;
     is($value, "bye world");
     $dbh->disconnect;
 }
+
+sleep 1; # Wait a second for the disconnect to propagate
 
 $deploy->teardown;
 

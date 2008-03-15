@@ -6,29 +6,59 @@ use warnings;
 use DBIx::Deploy;
 use DBIx::Deploy::Engine::PostgreSQL;
 use DBIx::Deploy::Engine::SQLite;
+use Carp;
+
+sub get_superdatabase {
+    my $superdatabase = $ENV{TEST_DBIx_Deploy_PostgreSQL_superdatabase} or croak "Erg, no superdatabase in environment";
+    $superdatabase = "template1:postgres" if $superdatabase =~ m/^default$/i;
+    return split m/:/, $superdatabase;
+}
+
+sub get_user {
+    my $user = $ENV{TEST_DBIx_Deploy_PostgreSQL_user} or croak "Erg, no user in environment";
+    $user = "_deploy:_deployusername:_deploypassword" if $user =~ m/^default$/i;
+    return split m/:/, $user;
+}
+
+our (@superdatabase, @user);
+eval {
+    @superdatabase = t::Test->get_superdatabase;
+    @user = t::Test->get_user;
+};
+
+sub no_PostgreSQL_reason {
+    return <<_END_
+Can't test PostgreSQL functionality without setting: TEST_DBIx_Deploy_PostgreSQL_superdatabase and TEST_DBIx_Deploy_PostgreSQL_user ...
+TEST_DBIx_Deploy_PostgreSQL_superdatabase is usually, "template1:postgres"
+TEST_DBIx_Deploy_PostgreSQL_user is something like, "_deploy:_deployusername:_deploypassword"
+_END_
+}
+
+sub can_PostgreSQL {
+    return @superdatabase && @user;
+}
 
 package t::Test::PostgreSQL;
 
 sub deploy {
     return DBIx::Deploy::Engine::PostgreSQL->new(configure => {
-    connection => {
-        superuser => [ qw/template1 postgres/ ],
 
-        user => {
-            database => "deploy",
-            username => "deploy",
-            password => "deploy",
-        },
+    superdatabase => \@superdatabase,
+
+    user => {
+        database => $user[0],
+        username => $user[1],
+        password => $user[2],
     },
 
-    setup => [ qw/superuser/ => \<<_END_ ],
-CREATE USER [% connection.username %] WITH PASSWORD 'deploy';
+    setup => [ \<<_END_ ],
+CREATE USER [% connection.username %] WITH PASSWORD '[% connection.password %]';
 --
 CREATE DATABASE [% connection.database %] WITH TEMPLATE template0 OWNER = [% connection.username %];
 --
 _END_
 
-    teardown => [ qw/superuser/ => \<<_END_ ],
+    teardown => [ \<<_END_ ],
 DROP DATABASE [% connection.database %];
 --
 DROP USER [% connection.username %];
@@ -54,6 +84,7 @@ package t::Test::SQLite;
 
 sub deploy {
     return DBIx::Deploy::Engine::SQLite->new(configure => {
+
     connection => {
         user => {
             database => "./deploy.db",
@@ -78,24 +109,23 @@ use Moose;
 extends qw/DBIx::Deploy::Engine::PostgreSQL/;
 
 __PACKAGE__->configure({
-    connection => {
-        superuser => [ qw/template1 postgres/ ],
 
-        user => {
-            database => "deploy",
-            username => "deploy",
-            password => "deploy",
-        },
+    superdatabase => \@superdatabase,
+
+    user => {
+        database => $user[0],
+        username => $user[1],
+        password => $user[2],
     },
 
-    setup => [ qw/superuser/ => \<<_END_ ],
-CREATE USER [% connection.username %] WITH PASSWORD 'deploy';
+    setup => [ \<<_END_ ],
+CREATE USER [% connection.username %] WITH PASSWORD '[% connection.password %]';
 --
 CREATE DATABASE [% connection.database %] WITH TEMPLATE template0 OWNER = [% connection.username %];
 --
 _END_
 
-    teardown => [ qw/superuser/ => \<<_END_ ],
+    teardown => [ \<<_END_ ],
 DROP DATABASE [% connection.database %];
 --
 DROP USER [% connection.username %];

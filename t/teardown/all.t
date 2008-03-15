@@ -8,12 +8,10 @@ use DBIx::Deploy::Engine::PostgreSQL;
 
 my $deploy = DBIx::Deploy::Engine::PostgreSQL->new(configure => {
 
-    connection => {
-        user => [ qw/deploy deploy deploy/ ],
-        superuser => [ qw/template1 postgres/ ],
-    },
+    user => [ qw/deploy deploy deploy/ ],
+    superuser => [ qw/template1 postgres/ ],
 
-    teardown => [ superuser => \<<_END_ ],
+    teardown => \<<_END_,
 DROP DATABASE [% connection.database %];
 --
 DROP USER [% connection.username %];

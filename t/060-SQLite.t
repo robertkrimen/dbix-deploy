@@ -9,7 +9,7 @@ use t::Test;
 my $deploy = t::Test::SQLite->deploy;
 ok($deploy);
 
-my $create = sub { $deploy->generate($deploy->stash->{create}) };
+my $create = sub { $deploy->generate($deploy->stash->{script}->{create}) };
 is(${ $create->() }, <<_END_);
 CREATE TABLE deploy_test (
     hello_world     TEXT

@@ -1,39 +1,44 @@
-#!perl -w
-
 use strict;
+use warnings;
 
-use Test::More qw/no_plan/;
+use Test::More;
 use Test::Deep;
 use t::Test;
+
+plan qw/skip_all/ => t::Test->no_PostgreSQL_reason and exit unless t::Test->can_PostgreSQL;
+plan qw/no_plan/;
+
+my @superdatabase = t::Test->get_superdatabase;
+my @user = t::Test->get_user;
 
 my $deploy = t::Test::PostgreSQL->deploy;
 ok($deploy);
 
-my $setup = sub { $deploy->generate($deploy->stash->{setup}->[1]) };
+my $setup = sub { $deploy->generate($deploy->stash->{script}->{setup}->[0]) };
 is(${ $setup->() }, <<_END_);
-CREATE USER deploy WITH PASSWORD 'deploy';
+CREATE USER $user[1] WITH PASSWORD '$user[2]';
 --
-CREATE DATABASE deploy WITH TEMPLATE template0 OWNER = deploy;
+CREATE DATABASE $user[0] WITH TEMPLATE template0 OWNER = $user[1];
 --
 _END_
 cmp_deeply([ $setup->() ], [
-    "CREATE USER deploy WITH PASSWORD 'deploy';",
-    "CREATE DATABASE deploy WITH TEMPLATE template0 OWNER = deploy;",
+    "CREATE USER $user[1] WITH PASSWORD '$user[2]';",
+    "CREATE DATABASE $user[0] WITH TEMPLATE template0 OWNER = $user[1];",
 ]);
 
 
-my $teardown = sub { $deploy->generate($deploy->stash->{teardown}->[1]) };
+my $teardown = sub { $deploy->generate($deploy->stash->{script}->{teardown}->[0]) };
 is(${ $teardown->() }, <<_END_);
-DROP DATABASE deploy;
+DROP DATABASE $user[0];
 --
-DROP USER deploy;
+DROP USER $user[1];
 _END_
 cmp_deeply([ $teardown->() ], [
-    "DROP DATABASE deploy;",
-    "DROP USER deploy;",
+    "DROP DATABASE $user[0];",
+    "DROP USER $user[1];",
 ]);
 
-my $create = sub { $deploy->generate($deploy->stash->{create}) };
+my $create = sub { $deploy->generate($deploy->stash->{script}->{create}) };
 is(${ $create->() }, <<_END_);
 CREATE TABLE deploy_test (
     hello_world     TEXT
@@ -51,6 +56,8 @@ _END_
 $deploy->setup;
 
 $deploy->create;
+
+sleep 1; # Wait a second for the disconnect to propagate
 
 $deploy->teardown;
 

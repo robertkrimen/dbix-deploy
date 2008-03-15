@@ -12,7 +12,7 @@ sub driver {
 
 sub exists {
     my $self = shift;
-    my $result = $self->connection(qw/superuser/)->select_value('SELECT COUNT(*) FROM pg_database WHERE datname = ?', $self->connection->database);
+    my $result = $self->connection(qw/superdatabase/)->select_value('SELECT COUNT(*) FROM pg_database WHERE datname = ?', $self->connection->database);
     return $result > 0 ? 1 : 0;
 }
 
