@@ -81,7 +81,7 @@ sub run {
     for my $statement (@$statements) {
         eval {
             chomp $statement;
-            warn "$statement\n" if 1;
+            warn "$statement\n" if $ENV{DBIX_DEPLOY_TRACE};
             $dbh->do($statement) or die $dbh->errstr;
         };
         if (my $error = $@) {

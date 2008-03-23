@@ -252,11 +252,9 @@ sub _template_process {
 
 sub database_exists {
     my $self = shift;
-    warn "Blech!";
     if (ref $self->stash->{database_exists} eq "CODE") {
         return $self->stash->{database_exists}->($self);
     }
-    warn "Norn!";
     return $self->_database_exists;
 }
 
@@ -282,6 +280,11 @@ sub _superdatabase_or_super_or_user_connection {
         return $self->connection($_) if $self->stash->{connection}->{$_};
     }
     croak "Urgh, don't have any connection to return";
+}
+
+sub ready {
+    my $self = shift;
+    return $self->database_exists && $self->schema_exists;
 }
 
 sub create {
