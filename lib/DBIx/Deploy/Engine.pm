@@ -48,11 +48,9 @@ sub connection {
     };
 }
 
-sub BUILD {
+sub prepare_stash {
     my $self = shift;
-    my $new = shift;
-    my $configure = $new->{configure} || {};
-    my $stash = $self->configure($configure);
+    my $stash = shift;
 
     $stash->{connection} ||= {};
     $stash->{script} ||= {};
@@ -72,6 +70,15 @@ sub BUILD {
     }
 
     $self->{stash} = $stash;
+}
+
+sub BUILD {
+    my $self = shift;
+    my $new = shift;
+    my $configure = $new->{configure} || {};
+    my $stash = $self->configure($configure);
+
+    $self->prepare_stash($stash);
 
     if ($self->{template}) {
         if (ref $self->{template} eq "" || (blessed $self->{template} && $self->{template}->isa("Path::Class::Dir"))) {
@@ -97,6 +104,8 @@ sub generate {
 
     $self->_generate_prepare_context($context);
 
+    $input = "$input" if blessed $input && $input->isa("Path::Class::File");
+
     croak "Don't have a template" unless $input;
     croak "Don't understand template \"$input\"" unless ref $input eq 'SCALAR' || ref $input eq '';
     my $script = $self->_template_process($input, $context);
@@ -114,6 +123,44 @@ sub _generate_prepare_context {
 
     $context->{engine} = $self;
     $context->{connection} = $self->connection;
+}
+
+sub _run_from_file {
+    my $self = shift;
+    my $connection = shift;
+    my $file = shift;
+
+    $file = Path::Class::file($file);
+
+    my @statements = $self->generate($file);
+    $connection->run(@statements);
+}
+
+sub _run_from_name {
+    my $self = shift;
+    my $connection = shift;
+    my $dir = shift;
+    my $name = shift;
+
+    $dir = Path::Class::dir($dir);
+
+    for ("", qw/.sql .tt2.sql .tt.sql .tt2 .tt/) {
+        next unless -f (my $file = $dir->file("$name$_"));
+        return $self->_run_from_file($connection, $file)
+    }
+
+    croak "Couldn't find file under $dir for $name";
+}
+
+sub _run_from_all {
+    my $self = shift;
+    my $connection = shift;
+    my $dir = shift;
+
+    $dir =~ s{\*$}{};
+    $dir = Path::Class::dir($dir);
+
+    croak "Uhh, not ready yet";
 }
 
 sub run_script {
@@ -150,9 +197,24 @@ STEP:
                 # DBIx::Class::Schema
                 croak "Uhh, not ready yet";
             }
-            elsif ($step =~ m/[\/\.]/) {
-                my @statements = $self->generate($step);
-                $connection->run(@statements);
+            elsif ($step =~ m{[/\.]}) {
+                if ($step =~ m{/$}) {
+                    $self->_run_from_name($connection, $step, $name);
+                }
+                elsif ($step =~ m{/\*$}) {
+                    $self->_run_from_all($connection, $step);
+                }
+                else {
+                    if (-f $step) {
+                        $self->_run_from_file($connection, $step);
+                    }
+                    elsif (-d $step) {
+                        $self->_run_from_name($connection, $step, $name);
+                    }
+                    else {
+                        croak "Don't know how to handle step: $step";
+                    }
+                }
             }
             else {
                 croak "Don't understand step: $step";
@@ -188,14 +250,28 @@ sub _template_process {
     return \$output;
 }
 
-sub created {
+sub database_exists {
     my $self = shift;
-    return 1; # Safest to do nothing
+    if (ref $self->stash->{database_exists} eq "CODE") {
+        return $self->stash->{database_exists}->($self);
+    }
+    return $self->_database_exists;
 }
 
-sub populated {
+sub _database_exists {
+    return undef;
+}
+
+sub schema_exists {
     my $self = shift;
-    return 1; # Safest to do nothing
+    if (ref $self->stash->{schema_exists} eq "CODE") {
+        return $self->stash->{schema_exists}->($self);
+    }
+    return $self->_schema_exists;
+}
+
+sub _schema_exists {
+    return undef;
 }
 
 sub _superdatabase_or_super_or_user_connection {
@@ -229,21 +305,20 @@ sub teardown {
 sub deploy {
     my $self = shift;
 
-    if ($self->exists) {
-        if ($self->created) {
-            unless ($self->populated) {
-                $self->populate;
+    if (defined (my $database_exists = $self->database_exists)) {
+        if ($database_exists) {
+            if (defined (my $schema_exists = $self->schema_exists)) {
+                unless ($schema_exists) {
+                    $self->create;
+                    $self->populate;
+                }
             }
         }
         else {
+            $self->setup;
             $self->create;
             $self->populate;
         }
-    }
-    else {
-        $self->setup;
-        $self->create;
-        $self->populate;
     }
 
     $self->connection->disconnect;

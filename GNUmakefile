@@ -14,5 +14,7 @@ Makefile: Makefile.PL
 clean: distclean
 
 reset: clean
+	-dropdb -U postgres _deploy
+	-dropuser -U postgres _deployusername
 	perl Makefile.PL
-	make -f Makefile test
+	$(MAKE) test

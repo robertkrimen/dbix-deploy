@@ -49,7 +49,7 @@ sub parse {
         shift;
     }
     else {
-        die;
+        croak "Don't know what to do with $_[0]";
     }
 
     $database = $engine->connection($1)->database if $database && ! ref $database && $database =~ m/^\$(.*)$/;
@@ -80,11 +80,6 @@ sub run {
         $dbh->do($statement) or die $dbh->errstr;
     }
     $dbh->disconnect;
-}
-
-sub exists {
-    my $self = shift;
-    return $self->connectable;
 }
 
 sub connectable {

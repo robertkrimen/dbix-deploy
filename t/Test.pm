@@ -6,7 +6,12 @@ use warnings;
 use DBIx::Deploy;
 use DBIx::Deploy::Engine::PostgreSQL;
 use DBIx::Deploy::Engine::SQLite;
+use Directory::Scratch;
 use Carp;
+
+sub scratch {
+    return Directory::Scratch->new;
+}
 
 sub get_superdatabase {
     my $superdatabase = $ENV{TEST_DBIx_Deploy_PostgreSQL_superdatabase} or croak "Erg, no superdatabase in environment";
@@ -64,7 +69,7 @@ DROP DATABASE [% connection.database %];
 DROP USER [% connection.username %];
 _END_
 
-    created => "deploy_test",
+    database_exists => "deploy_test",
     create => \<<_END_,
 CREATE TABLE deploy_test (
     hello_world     TEXT
@@ -72,7 +77,7 @@ CREATE TABLE deploy_test (
 --
 _END_
 
-    populated => "deploy_test",
+    schema_exists => "deploy_test",
     populate => \<<_END_,
 INSERT INTO deploy_test VALUES ('bye world');
 --
@@ -87,7 +92,7 @@ sub deploy {
 
     connection => {
         user => {
-            database => "./deploy.db",
+            database => (t::Test->scratch->tempfile)[1],
         },
     },
 

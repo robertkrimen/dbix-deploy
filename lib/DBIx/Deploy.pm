@@ -25,13 +25,21 @@ sub create {
     my $engine = delete $_{engine};
 
     my $engine_class = $engine;
+
+    if      (0)                                         {}
+    elsif   ($engine_class =~ m/^SQLite$/i)             { $engine_class = "SQLite" }
+    elsif   ($engine_class =~ m/^PostgreS(?:QL)?$/i)    { $engine_class = "PostgreSQL" }
+    elsif   ($engine_class =~ m/^MySQL$/i)              { $engine_class = "MySQL" }
+
     $engine_class = "DBIx::Deploy::Engine::$engine" unless $engine_class =~ s/^\+//;
-    
+
     unless (Class::Inspector->loaded($engine_class)) {
         eval "require $engine_class;" or croak "Couldn't find engine: $engine_class: $@";
     }
 
-    return $engine_class->new(configure => $_{configure} || $_{config});
+    my $configure = delete $_{configure} || delete $_{config};
+    
+    return $engine_class->new(configure => $configure, %_);
 }
 
 =head1 AUTHOR

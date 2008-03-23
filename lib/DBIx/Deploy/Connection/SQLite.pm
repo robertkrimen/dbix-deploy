@@ -4,10 +4,11 @@ use strict;
 use warnings;
 
 use Moose;
+use Carp::Clan;
 
 extends qw/DBIx::Deploy::Connection/;
 
-sub exists {
+sub database_exists {
     my $self = shift;
     return -f $self->database && -s _ ? 1 : 0;
 }
@@ -25,8 +26,11 @@ sub parse {
         ($database, $attributes) = @{ $_[0] }{qw/database attributes/};
         shift;
     }
+    elsif ($_[0]) {
+        $database = shift;
+    }
     else {
-        die @_;
+        croak "Don't know what to do";
     }
 
     return $class->SUPER::parse($engine => [ $database, undef, undef, $attributes ]);

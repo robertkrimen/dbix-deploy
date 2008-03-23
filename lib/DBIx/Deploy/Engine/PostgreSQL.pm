@@ -10,20 +10,27 @@ sub driver {
     return "Pg";
 }
 
-sub exists {
+sub _database_exists {
     my $self = shift;
+
     my $result = $self->connection(qw/superdatabase/)->select_value('SELECT COUNT(*) FROM pg_database WHERE datname = ?', $self->connection->database);
     return $result > 0 ? 1 : 0;
 }
 
-sub created {
+sub _schema_exists {
     my $self = shift;
-    my $connection = shift || $self->connection;
 
-    return 1 unless defined (my $created = $self->stash->{created}); # By default (if we get this far) assume the database was made
-    my $result = $connection->select_value('SELECT COUNT(*) FROM pg_tables WHERE tablename = ?', $created);
-    return $result;
+    if ($self->stash->{schema_exists} && ref $self->stash->{schema_exists} eq "") {
+        my $result = $self->connection->select_value('SELECT COUNT(*) FROM pg_tables WHERE tablename = ?', $self->stash->{schema_exists});
+        return $result;
+    }
+
+    return undef;
 }
+
+1;
+
+__END__
 
 sub populated {
     my $self = shift;

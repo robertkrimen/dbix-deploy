@@ -12,24 +12,29 @@ __PACKAGE__->configure({
     connection_class => "DBIx::Deploy::Connection::SQLite",
 });
 
-#has connection => qw/is ro required 1 lazy 1/, default => sub {
-#    my $self = shift;
-#    return $self->stash->{connection_class}->parse($self, $self->stash->{connection});
-#};
-
 sub driver {
     return "SQLite";
 }
 
-sub exists {
+sub _database_exists {
     my $self = shift;
-    return $self->connection->exists;
+    return -f $self->connection->database && -s _;
 }
 
 after teardown => sub {
     my $self = shift;
     my $connection = $self->connection;
     unlink $connection->database or warn $!;
+};
+
+after prepare_stash => sub {
+    my $self = shift;
+
+    my $stash = $self->stash;
+
+    if (! $stash->{connection}->{user} && $stash->{database}) {
+        $stash->{connection}->{user} = delete $stash->{database};
+    }
 };
 
 1;

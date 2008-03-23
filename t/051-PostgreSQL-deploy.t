@@ -27,7 +27,7 @@ ok($deploy->connection->connectable);
 
 $deploy->deploy;
 
-{
+eval {
     my $dbh = $deploy->connection->connect;
     my $value;
     $value = $dbh->selectrow_arrayref('SELECT COUNT(*) FROM deploy_test')->[0];
@@ -35,7 +35,8 @@ $deploy->deploy;
     $value = $dbh->selectrow_arrayref('SELECT * FROM deploy_test')->[0];
     is($value, "bye world");
     $dbh->disconnect;
-}
+};
+ok(!$@);
 
 sleep 1; # Wait a second for the disconnect to propagate
 
