@@ -9,8 +9,8 @@ use t::Test;
 SKIP: {
     skip(t::Test->no_PostgreSQL_reason) unless t::Test->can_PostgreSQL;
 
-    my @superdatabase = t::Test->get_superdatabase;
-    my @user = t::Test->get_user;
+    my @superdatabase = t::Test->get_PostgreSQL_superdatabase;
+    my @user = t::Test->get_PostgreSQL_user;
 
     my $deploy = DBIx::Deploy->create(
 
@@ -87,8 +87,8 @@ SKIP: {
 
 SKIP: {
     skip(t::Test->no_PostgreSQL_reason) unless t::Test->can_PostgreSQL;
-    my @superdatabase = t::Test->get_superdatabase;
-    my @user = t::Test->get_user;
+    my @superdatabase = t::Test->get_PostgreSQL_superdatabase;
+    my @user = t::Test->get_PostgreSQL_user;
 
     my $deploy = DBIx::Deploy->create(
 

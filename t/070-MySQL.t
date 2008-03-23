@@ -5,25 +5,25 @@ use Test::More;
 use Test::Deep;
 use t::Test;
 
-plan qw/skip_all/ => t::Test->no_PostgreSQL_reason and exit unless t::Test->can_PostgreSQL;
+plan qw/skip_all/ => t::Test->no_MySQL_reason and exit unless t::Test->can_MySQL;
 plan qw/no_plan/;
 
-my @superdatabase = t::Test->get_PostgreSQL_superdatabase;
-my @user = t::Test->get_PostgreSQL_user;
+my @superdatabase = t::Test->get_MySQL_superdatabase;
+my @user = t::Test->get_MySQL_user;
 
-my $deploy = t::Test::PostgreSQL->deploy;
+my $deploy = t::Test::MySQL->deploy;
 ok($deploy);
 
 my $setup = sub { $deploy->generate($deploy->stash->{script}->{setup}->[0]) };
 is(${ $setup->() }, <<_END_);
-CREATE USER $user[1] WITH PASSWORD '$user[2]';
+CREATE DATABASE $user[0];
 --
-CREATE DATABASE $user[0] WITH TEMPLATE template0 OWNER = $user[1];
+GRANT ALL ON $user[0].* TO $user[1] IDENTIFIED BY '$user[2]';
 --
 _END_
 cmp_deeply([ $setup->() ], [
-    "CREATE USER $user[1] WITH PASSWORD '$user[2]';",
-    "CREATE DATABASE $user[0] WITH TEMPLATE template0 OWNER = $user[1];",
+    "CREATE DATABASE $user[0];",
+    "GRANT ALL ON $user[0].* TO $user[1] IDENTIFIED BY '$user[2]';",
 ]);
 
 

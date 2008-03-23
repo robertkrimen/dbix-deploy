@@ -142,6 +142,7 @@ sub _run_from_name {
     my $dir = shift;
     my $name = shift;
 
+    my $soft = $dir =~ s/^\?//;
     $dir = Path::Class::dir($dir);
 
     for ("", qw/.sql .tt2.sql .tt.sql .tt2 .tt/) {
@@ -149,7 +150,7 @@ sub _run_from_name {
         return $self->_run_from_file($connection, $file)
     }
 
-    croak "Couldn't find file under $dir for $name";
+    croak "Couldn't find file under $dir for $name" unless $soft;
 }
 
 sub _run_from_all {
@@ -197,7 +198,7 @@ STEP:
                 # DBIx::Class::Schema
                 croak "Uhh, not ready yet";
             }
-            elsif ($step =~ m{[/\.]}) {
+            else {
                 if ($step =~ m{/$}) {
                     $self->_run_from_name($connection, $step, $name);
                 }
@@ -205,19 +206,18 @@ STEP:
                     $self->_run_from_all($connection, $step);
                 }
                 else {
-                    if (-f $step) {
+                    my $test = $step;
+                    $test =~ s/^\?//;
+                    if (-f $test) {
                         $self->_run_from_file($connection, $step);
                     }
-                    elsif (-d $step) {
+                    elsif (-d $test) {
                         $self->_run_from_name($connection, $step, $name);
                     }
                     else {
-                        croak "Don't know how to handle step: $step";
+                        croak "Don't understand step: $step";
                     }
                 }
-            }
-            else {
-                croak "Don't understand step: $step";
             }
         }
         elsif (ref $step eq 'SCALAR') {

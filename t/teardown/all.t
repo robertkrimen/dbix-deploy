@@ -9,7 +9,7 @@ use DBIx::Deploy::Engine::PostgreSQL;
 my $deploy = DBIx::Deploy::Engine::PostgreSQL->new(configure => {
 
     user => [ qw/deploy deploy deploy/ ],
-    superuser => [ qw/template1 postgres/ ],
+    superdatabase => [ qw/template1 postgres/ ],
 
     teardown => \<<_END_,
 DROP DATABASE [% connection.database %];
@@ -21,3 +21,15 @@ _END_
 ok($deploy);
 
 $deploy->teardown;
+
+$deploy = DBIx::Deploy::Engine::MySQL->new(configure => {
+
+    user => [ qw/deploy deploy deploy/ ],
+    superdatabase => [ qw/template1 postgres/ ],
+
+    teardown => \<<_END_,
+DROP DATABASE [% connection.database %];
+--
+DROP USER [% connection.username %];
+_END_
+});
