@@ -67,6 +67,10 @@ sub parse {
 
 sub run {
     my $self = shift;
+    my $statements = shift;
+    local %_ = @_;
+
+    $_{raise_error} = 1 unless exists $_{raise_error};
 
     my $dbh = $self->connect;
     unless ($dbh) {
@@ -74,10 +78,20 @@ sub run {
         my @information = $self->information;
         croak "Unable to connect with (@information): ", DBI->errstr unless $dbh;
     }
-    for my $statement (@_) {
-        chomp $statement;
-        warn "$statement\n" if 1;
-        $dbh->do($statement) or die $dbh->errstr;
+    for my $statement (@$statements) {
+        eval {
+            chomp $statement;
+            warn "$statement\n" if 1;
+            $dbh->do($statement) or die $dbh->errstr;
+        };
+        if (my $error = $@) {
+            if ($_{raise_error}) {
+                die $error;
+            }
+            else {
+                warn $error;
+            }
+        }
     }
     $dbh->disconnect;
 }

@@ -133,7 +133,7 @@ sub _run_from_file {
     $file = Path::Class::file($file);
 
     my @statements = $self->generate($file);
-    $connection->run(@statements);
+    $connection->run(\@statements, @_);
 }
 
 sub _run_from_name {
@@ -147,7 +147,7 @@ sub _run_from_name {
 
     for ("", qw/.sql .tt2.sql .tt.sql .tt2 .tt/) {
         next unless -f (my $file = $dir->file("$name$_"));
-        return $self->_run_from_file($connection, $file)
+        return $self->_run_from_file($connection, $file, @_)
     }
 
     croak "Couldn't find file under $dir for $name" unless $soft;
@@ -200,19 +200,19 @@ STEP:
             }
             else {
                 if ($step =~ m{/$}) {
-                    $self->_run_from_name($connection, $step, $name);
+                    $self->_run_from_name($connection, $step, $name, %_);
                 }
                 elsif ($step =~ m{/\*$}) {
-                    $self->_run_from_all($connection, $step);
+                    $self->_run_from_all($connection, $step, %_);
                 }
                 else {
                     my $test = $step;
                     $test =~ s/^\?//;
                     if (-f $test) {
-                        $self->_run_from_file($connection, $step);
+                        $self->_run_from_file($connection, $step, %_);
                     }
                     elsif (-d $test) {
-                        $self->_run_from_name($connection, $step, $name);
+                        $self->_run_from_name($connection, $step, $name, %_);
                     }
                     else {
                         croak "Don't understand step: $step";
@@ -222,15 +222,15 @@ STEP:
         }
         elsif (ref $step eq 'SCALAR') {
             my @statements = $self->generate($step);
-            $connection->run(@statements);
+            $connection->run(\@statements, %_);
         }
         elsif (ref $step eq 'CODE') {
-            $step->($self, \@script);
+            $step->($self, \@script, %_);
         }
         elsif (ref $step eq 'ARRAY') {
             for (@$step) {
                 my @statements = $self->generate($step);
-                $connection->run(@statements);
+                $connection->run(\@statements, %_);
             }
         }
         else {
@@ -299,7 +299,7 @@ sub setup {
 
 sub teardown {
     my $self = shift;
-    return $self->run_script("teardown", nonexistent_is_okay => 1, connection => $self->_superdatabase_or_super_or_user_connection, @_);
+    return $self->run_script("teardown", raise_error => 0, nonexistent_is_okay => 1, connection => $self->_superdatabase_or_super_or_user_connection, @_);
 }
 
 sub deploy {

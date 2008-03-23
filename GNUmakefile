@@ -2,10 +2,10 @@
 
 all: test
 
-dist distclean test tardist: Makefile
+dist distclean tardist: Makefile
 	make -f $< $@
 
-test:
+test: Makefile
 	TEST_DBIx_Deploy_PostgreSQL_superdatabase=default TEST_DBIx_Deploy_PostgreSQL_user=default \
 	TEST_DBIx_Deploy_MySQL_superdatabase=default TEST_DBIx_Deploy_MySQL_user=default \
 	make -f $< $@
