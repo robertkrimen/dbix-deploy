@@ -18,6 +18,9 @@ sub driver {
 
 sub _database_exists {
     my $self = shift;
+    warn "Younk!";
+    warn $self->connection->database;
+    warn -f $self->connection->database;
     return -f $self->connection->database && -s _;
 }
 

@@ -252,9 +252,11 @@ sub _template_process {
 
 sub database_exists {
     my $self = shift;
+    warn "Blech!";
     if (ref $self->stash->{database_exists} eq "CODE") {
         return $self->stash->{database_exists}->($self);
     }
+    warn "Norn!";
     return $self->_database_exists;
 }
 
