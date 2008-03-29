@@ -215,7 +215,7 @@ STEP:
                         $self->_run_from_name($connection, $step, $name, %_);
                     }
                     else {
-                        croak "Don't understand step: $step";
+                        croak "Don't understand step ($step) since ($test) is neither a file nor directory";
                     }
                 }
             }
@@ -283,6 +283,13 @@ sub _superdatabase_or_super_or_user_connection {
 }
 
 sub ready {
+    my $self = shift;
+    if (ref $self->stash->{ready} eq "CODE") {
+        return $self->stash->{ready}->($self);
+    }
+}
+
+sub _ready {
     my $self = shift;
     return $self->database_exists && $self->schema_exists;
 }
