@@ -43,7 +43,11 @@ sub create {
     }
 
     my $configure = delete $_{configure} || delete $_{config};
-    
+    if (! $configure) {
+        $configure = { %_ };
+        %_ = ();
+    }
+
     return $engine_class->new(configure => $configure, %_);
 }
 
