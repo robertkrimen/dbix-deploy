@@ -8,6 +8,12 @@ use Carp::Clan;
 
 extends qw/DBIx::Deploy::Connection/;
 
+before connect => sub {
+    my $self = shift;
+    my $database = $self->database;
+    $database->parent->mkpath unless -d $database->parent;
+};
+
 sub database_exists {
     my $self = shift;
     return -f $self->database && -s _ ? 1 : 0;
