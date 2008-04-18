@@ -1,5 +1,10 @@
-Revision history for DBIx-Deploy
+TODO:
+ - ::Engine::run_file $file
 
-0.01    Date/time
-        First version, released on an unsuspecting world.
+ - ::Engine::run_file [ $directory, $name, $suffixes ]
+            (can result in "run_directory" ... stop on first matching directory/file found)
 
+ - ::Engine::run_directory $directory
+            recursively run through directory, "executing" in alphabetical order
+
+ - Integrate File::Ignore so we do the right thing in run_directory()
