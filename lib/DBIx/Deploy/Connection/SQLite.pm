@@ -21,6 +21,7 @@ sub database_exists {
 
 sub parse {
     my $class = shift;
+    my $name = shift;
     my $engine = shift;
 
     my ($database, $attributes);
@@ -39,7 +40,7 @@ sub parse {
         croak "Don't know what to do";
     }
 
-    return $class->SUPER::parse($engine => [ $database, undef, undef, $attributes ]);
+    return $class->SUPER::parse($name => $engine, [ $database, undef, undef, $attributes ]);
 }
 
 1;

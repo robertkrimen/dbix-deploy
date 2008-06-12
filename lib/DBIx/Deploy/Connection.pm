@@ -58,7 +58,7 @@ sub parse {
     $password = $engine->connection($1)->password if $password && ! ref $password && $password =~ m/^\$(.*)$/;
     $attributes = $engine->connection($1)->attributes if $attributes && ! ref $attributes && $attributes =~ m/^\$(.*)$/;
 
-    if ($password =~ s/\s*<//) {
+    if ($password && $password =~ s/\s*<//) {
         my $key = $password;
 
         my $identity = "$username\@$database";
