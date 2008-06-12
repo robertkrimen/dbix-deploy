@@ -18,6 +18,129 @@ __PACKAGE__->configure({
     connection_class => "DBIx::Deploy::Connection",
 });
 
+=head1 NAME
+
+DBIx::Deploy::Engine
+
+=head1 Connection specification
+
+A connection specification specifies the DBI connections used by the engine. The most basic format is an array reference of what
+you would pass to DBI->connect(...):
+
+    
+
+=head1 Engine configuration
+
+An engine configuration is a hash containing the following:
+
+    connection => {
+
+        user => The user connection for the database. This is the connection that interacts with the database while the application
+                is running.
+
+        superdatabase => This is the connection used for creating/dropping the actual database (that is CREATE DATABASE/DROP DATABASE).
+                         This connection does NOT connect to the user database because:
+
+                                1. You can't connect to a database that doesn't exist
+                                2. You can't drop a database with an active connection
+
+                         In PostgreSQL, this is something like the template0 or template1 database.
+                         In MySQL, this is something like the mysql database.
+
+        superuser => A hybrid connection, consisting of the superdatabase username/password and user database. This is used for
+                     setting up advanced features on the user database without having to grant extra privileges to the regular user.
+                     For example, with a PostgreSQL database you would use this connection to run CREATE LANGUAGE
+
+        <name> => Any other specially named connection you want to specify for use in a script.
+
+    }
+
+    setup => A script for creating the actual database (e.g. createdb with PostgreSQL). Run via the C<superdatabase> connection.
+
+    create => A script for creating the database schema. Run via the C<user> connection.
+
+    populate => A script for populating the database with data. Run via the C<user> connection.
+
+    teardown => A script for tearing down the database (e.g. dropdb with PostgreSQL). Run via the C<superdatabase> connection.
+
+    before => {
+    
+        setup => A script that will run before the setup script.
+
+        create => A script that will run before the create script.
+
+        populate => A script that will run before the populate script.
+
+        teardown => A script that will run before the teardown script.
+    }
+
+    after => {
+    
+        setup => A script that will run after the setup script.
+
+        create => A script that will run after the create script.
+
+        populate => A script that will run after the populate script.
+
+        teardown => A script that will run after the teardown script.
+    }
+
+=head1 Scripting setup/create/populate/teardown
+
+A script is a list (array reference) composed of steps. The steps are run through in order.
+
+SQL referenced in a step will be first processed via Template Toolkit.  The result will be split using L<SQL::Script> with the following pattern: C</\n\s*-{2,4}\n/>
+
+That is, a newline, followed by optional whitespace, followed by 2 to 4 dashes and another newline. For example:
+
+    CREATE TABLE album (...)
+
+    --
+
+    CREATE TABLE artist (...)
+
+    --
+
+A step can be:
+
+=head2 ~<connection> 
+
+Set the connection for the following STEP to be <connection>
+
+After the following STEP, the connection will revert to the default connection
+
+    ..., ~user => \"CREATE TABLE ...", ...
+
+    ..., ~superuser => \"CREATE TABLE ...", ...
+
+=head2 <file>
+
+Execute the SQL in the <file> using the current connection
+
+    ..., /path/to/sql/extra.sql, ...
+
+=head2 <directory>
+
+Execute the SQL in the file <directory>/<stage>{.sql, .tt2.sql, .tt.sql, .tt2, .tt} using the current connection
+
+    ..., /path/to/sql/, ...
+
+    # If the current stage is "create", then the above will use /path/to/sql/create.sql (or one of the other extensions)
+
+=head2 SCALAR
+
+Execute the SQL contained in SCALAR using the current connection. Again, statements should be separated using a double dash at the
+beginning of the line (as described above).
+
+=cut
+
+    #=head2 CODE
+
+    #Execute CODE, passing in: the engine,  the remaining script (as an array reference) 
+
+    #=head2 ARRAY
+
+
 sub driver {
     my $self = shift;
     croak "Don't have a driver for $self";

@@ -26,28 +26,22 @@ DBIx::Deploy::SQLite
     
     $deploy->deploy if ! $deploy->database_exists;
 
-=head1 Database administration password
-
-Unfortunately for now, if you need a password to log in as your database admin user (via the "superdatabase"), then you need to
-embed the password into your code or configuration.
-
 =head1 METHODS
 
-=head2 my $deploy = DBIx::Deploy::SQLite->new(<user>, <superdatabase>, <path-to-SQL>, ...)
+=head2 my $deploy = DBIx::Deploy::SQLite->new( <filename>, <directory> )
 
 This method will return a L<DBIx::Deploy::Engine::SQLite> object that you can use to deploy your database schema.
 
-<user> and <superdatabase> should be in the proper format to be passed to DBI connect, with the exception that the database
-may be passed in name only (that is, "my_database" instead of "DBI::mysql::database=my_database")
+The <filename> argument should be the file that does-contain/should-contain your SQLite database.
 
-The <path-to-SQL> argument should point to a directory on disk containing something like:
+The <directory> argument should point to a directory on disk containing something like:
 
     create.sql
     populate.sql
 
 If a file doesn't exist, then it won't be run.
 
-Finally, any remaining arguments will be passed through to the configuration of DBIx::Deploy::Engine::SQLite
+Finally, any remaining arguments will be passed through to the configuration of L<DBIx::Deploy::Engine>
 
 =cut
 

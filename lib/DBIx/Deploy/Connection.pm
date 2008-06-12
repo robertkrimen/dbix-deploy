@@ -73,7 +73,6 @@ sub parse {
         $_ = $$_ if ref $_ eq "SCALAR";
     }
 
-
     my $source = "dbi:" . $engine->driver . ":dbname=$database";
 
     return $class->new(engine => $engine, source => $source, database => $database, username => $username, password => $password, attributes => $attributes, @_);
