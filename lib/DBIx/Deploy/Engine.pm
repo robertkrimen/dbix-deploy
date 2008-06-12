@@ -11,6 +11,7 @@ use SQL::Script;
 use Carp;
 use DBIx::Deploy::Connection;
 use DBIx::Deploy::Stash;
+use Term::Prompt();
 
 __PACKAGE__->mk_group_accessors(inherited => qw/_base_stash/);
 __PACKAGE__->configure({
@@ -23,7 +24,7 @@ sub driver {
 }
 
 has script => qw/is ro required 1 lazy 1/, default => sub {
-    return SQL::Script->new(split_by => qr/\n\s*--\n/);
+    return SQL::Script->new(split_by => qr/\n\s*-{2,4}\n/);
 };
 
 has template => qw/is ro required 1 lazy 1/, default => sub {
@@ -33,6 +34,8 @@ has template => qw/is ro required 1 lazy 1/, default => sub {
 has _connection => qw/is ro required 1 lazy 1/, default => sub { {} };
 
 has stash => qw/is ro/;
+
+has password_store => qw/is ro required 1 lazy 1 isa HashRef/, default => sub { {} };
 
 sub connection {
     my $self = shift;
@@ -44,7 +47,7 @@ sub connection {
             $connection = [ qw/$user $superdatabase $superdatabase $user/ ],
         }
         croak "Don't have a connection definition for $name" unless $connection;
-        $self->stash->{connection_class}->parse($self, $connection);
+        $self->stash->{connection_class}->parse($self, $name, $connection);
     };
 }
 
@@ -95,6 +98,27 @@ sub BUILD {
     }
 
     return $self;
+}
+
+sub password {
+    my $self = shift;
+    my %given = @_;
+
+    my $key = $given{key};
+    $given{save} = 1 unless exists $given{save};
+
+    if ($given{force} || ! defined $self->password_store->{$key}) {
+
+        unless ($Test::Builder::VERSION) {
+            croak "Can't read password prompt from non-tty STDIN" unless -t STDIN && -t STDOUT;
+        }
+
+        my $password = Term::Prompt::prompt(P => $given{prompt} || "Enter password:", $given{help} || '', '');
+        $self->password_store->{$key} = $password if $given{save};
+        return $password;
+    }
+
+    return $self->password_store->{$key};
 }
 
 sub generate {
@@ -164,6 +188,24 @@ sub _run_from_all {
     croak "Uhh, not ready yet";
 }
 
+sub run_script_sequence {
+    my $self = shift;
+    my $name = shift;
+
+    my $stash = $self->stash->{script};
+    my $script;
+
+    if ($stash->{before} && ($script = $stash->{before}->{$name})) {
+        $self->run_script($name, script => $script, @_);
+    }
+
+    $self->run_script($name, script => $stash->{$name}, @_);
+
+    if ($stash->{after} && ($script = $stash->{after}->{$name})) {
+        $self->run_script($name, script => $script, @_);
+    }
+}
+
 sub run_script {
     my $self = shift;
     my $name = shift;
@@ -171,9 +213,9 @@ sub run_script {
 
     my $default_connection = $_{connection} || $self->connection;
 
-    my $script = $self->stash->{script}->{$name};
+    my $script = delete $_{script};
     unless ($script) {
-        return if $_{nonexistent_is_okay};
+        return if $_{ignore_missing};
         croak "Don't have a script called $name";
     }
 
@@ -228,6 +270,7 @@ STEP:
             $step->($self, \@script, %_);
         }
         elsif (ref $step eq 'ARRAY') {
+            # TODO Don't think this works
             for (@$step) {
                 my @statements = $self->generate($step);
                 $connection->run(\@statements, %_);
@@ -296,22 +339,22 @@ sub _ready {
 
 sub create {
     my $self = shift;
-    return $self->run_script("create", nonexistent_is_okay => 1, @_);
+    return $self->run_script_sequence("create", ignore_missing => 1, @_);
 }
 
 sub populate {
     my $self = shift;
-    return $self->run_script("populate", nonexistent_is_okay => 1, @_);
+    return $self->run_script_sequence("populate", ignore_missing => 1, @_);
 }
 
 sub setup {
     my $self = shift;
-    return $self->run_script("setup", nonexistent_is_okay => 1, connection => $self->_superdatabase_or_super_or_user_connection, @_);
+    return $self->run_script_sequence("setup", ignore_missing => 1, connection => $self->_superdatabase_or_super_or_user_connection, @_);
 }
 
 sub teardown {
     my $self = shift;
-    return $self->run_script("teardown", raise_error => 0, nonexistent_is_okay => 1, connection => $self->_superdatabase_or_super_or_user_connection, @_);
+    return $self->run_script_sequence("teardown", raise_error => 0, ignore_missing => 1, connection => $self->_superdatabase_or_super_or_user_connection, @_);
 }
 
 sub deploy {

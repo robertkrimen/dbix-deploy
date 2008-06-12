@@ -38,6 +38,7 @@ sub disconnect {
 sub parse {
     my $class = shift;
     my $engine = shift;
+    my $name = shift;
 
     my ($database, $username, $password, $attributes);
     if (ref $_[0] eq "ARRAY") {
@@ -56,9 +57,22 @@ sub parse {
     $username = $engine->connection($1)->username if $username && ! ref $username && $username =~ m/^\$(.*)$/;
     $password = $engine->connection($1)->password if $password && ! ref $password && $password =~ m/^\$(.*)$/;
     $attributes = $engine->connection($1)->attributes if $attributes && ! ref $attributes && $attributes =~ m/^\$(.*)$/;
+
+    if ($password =~ s/\s*<//) {
+        my $key = $password;
+
+        my $identity = "$username\@$database";
+
+        if      ($key eq "\$name")                  { $key = $name }
+        elsif   (! $key || $key eq "\$identity")    { $key = $identity }
+
+        $password = $engine->password(key => $key, prompt => "Enter password for $identity ($name):");
+    }
+
     for ($database, $username, $password, $attributes) {
         $_ = $$_ if ref $_ eq "SCALAR";
     }
+
 
     my $source = "dbi:" . $engine->driver . ":dbname=$database";
 

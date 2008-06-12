@@ -24,14 +24,14 @@ DBIx::Deploy::PostgreSQL
     
     $deploy->deploy if ! $deploy->database_exists;
 
-head1 Database administration password
+=head1 Database administration password
 
 Unfortunately for now, if you need a password to log in as your database admin user (via the "superdatabase"), then you need to
 embed the password into your code or configuration.
 
-head1 METHODS
+=head1 METHODS
 
-head2 my $deploy = DBIx::Deploy::PostgreSQL->new(<user>, <superdatabase>, <path-to-SQL>, ...)
+=head2 my $deploy = DBIx::Deploy::PostgreSQL->new(<user>, <superdatabase>, <path-to-SQL>, ...)
 
 This method will return a L<DBIx::Deploy::Engine::PostgreSQL> object that you can use to deploy your database schema.
 

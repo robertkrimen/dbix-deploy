@@ -1,14 +1,5 @@
 source $HOME/.screenrc
 
-screen -t ap-er 6
-stuff "clear; tail -n 128 -F logs/error.log \015"
-
-screen -t ap-ac 7
-stuff "clear; tail -n 128 -F logs/access.log \015"
-
-screen -t l4p 8
-stuff "clear; tail -n 128 -F logs/log4perl.log \015"
-
 screen 0
 stuff "vim -S \015"
 

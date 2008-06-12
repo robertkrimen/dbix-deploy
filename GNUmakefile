@@ -1,14 +1,19 @@
-.PHONY: all test time clean distclean dist distcheck upload distupload
+.PHONY: all test time clean distclean dist distcheck upload distupload prompt
 
 all: test
 
-dist distclean tardist: Makefile
-	make -f $< $@
+dist:
+	rm -rf inc META.y*ml
+	perl Makefile.PL
+	$(MAKE) -f Makefile dist
+
+distclean tardist: Makefile
+	$(MAKE) -f $< $@
 
 test: Makefile
 	TEST_DBIx_Deploy_PostgreSQL_superdatabase=default TEST_DBIx_Deploy_PostgreSQL_user=default \
 	TEST_DBIx_Deploy_MySQL_superdatabase=default TEST_DBIx_Deploy_MySQL_user=default \
-	make -f $< $@
+	TEST_RELEASE=1 $(MAKE) -f $< $@
 
 Makefile: Makefile.PL
 	perl $<
@@ -21,3 +26,6 @@ reset: clean
 	-mysqladmin -fu root drop _deploy
 	perl Makefile.PL
 	$(MAKE) test
+
+prompt:
+	TRY_IT_OUT=1 perl ./t/002-prompt.t
