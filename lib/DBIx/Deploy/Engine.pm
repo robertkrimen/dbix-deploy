@@ -38,7 +38,7 @@ An engine configuration is a hash containing the following:
         user => The user connection for the database. This is the connection that interacts with the database while the application
                 is running.
 
-        superdatabase => This is the connection used for creating/dropping the actual database (that is CREATE DATABASE/DROP DATABASE).
+        superdatabase => This is the connection used for creating/dropping the actual database (CREATE DATABASE/DROP DATABASE).
                          This connection does NOT connect to the user database because:
 
                                 1. You can't connect to a database that doesn't exist
@@ -51,7 +51,7 @@ An engine configuration is a hash containing the following:
                      setting up advanced features on the user database without having to grant extra privileges to the regular user.
                      For example, with a PostgreSQL database you would use this connection to run CREATE LANGUAGE
 
-        <name> => Any other specially named connection you want to specify for use in a script.
+        <name> => Any other specially named connection you want to specify
 
     }
 
@@ -65,31 +65,31 @@ An engine configuration is a hash containing the following:
 
     before => {
     
-        setup => A script that will run before the setup script.
+        setup => A script that will run before the (main) setup script.
 
-        create => A script that will run before the create script.
+        create => A script that will run before the (main) create script.
 
-        populate => A script that will run before the populate script.
+        populate => A script that will run before the (main) populate script.
 
-        teardown => A script that will run before the teardown script.
+        teardown => A script that will run before the (main) teardown script.
     }
 
     after => {
     
-        setup => A script that will run after the setup script.
+        setup => A script that will run after the (main) setup script.
 
-        create => A script that will run after the create script.
+        create => A script that will run after the (main) create script.
 
-        populate => A script that will run after the populate script.
+        populate => A script that will run after the (main) populate script.
 
-        teardown => A script that will run after the teardown script.
+        teardown => A script that will run after the (main) teardown script.
     }
 
 =head1 Scripting setup/create/populate/teardown
 
 A script is a list (array reference) composed of steps. The steps are run through in order.
 
-SQL referenced in a step will be first processed via Template Toolkit.  The result will be split using L<SQL::Script> with the following pattern: C</\n\s*-{2,4}\n/>
+SQL in a step will be first processed via Template Toolkit.  The result will be split using L<SQL::Script> with the following pattern: C</\n\s*-{2,4}\n/>
 
 That is, a newline, followed by optional whitespace, followed by 2 to 4 dashes and another newline. For example:
 

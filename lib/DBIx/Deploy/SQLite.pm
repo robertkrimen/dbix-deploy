@@ -28,7 +28,7 @@ DBIx::Deploy::SQLite
 
 =head1 METHODS
 
-=head2 my $deploy = DBIx::Deploy::SQLite->new( <filename>, <directory> )
+=head2 my $deploy = DBIx::Deploy::SQLite->new( <filename>, <directory>, ... )
 
 This method will return a L<DBIx::Deploy::Engine::SQLite> object that you can use to deploy your database schema.
 
@@ -36,10 +36,8 @@ The <filename> argument should be the file that does-contain/should-contain your
 
 The <directory> argument should point to a directory on disk containing something like:
 
-    create.sql
-    populate.sql
-
-If a file doesn't exist, then it won't be run.
+    <directory>/create.sql
+    <directory>/populate.sql
 
 Finally, any remaining arguments will be passed through to the configuration of L<DBIx::Deploy::Engine>
 
