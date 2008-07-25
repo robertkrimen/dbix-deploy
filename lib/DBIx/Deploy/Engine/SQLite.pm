@@ -12,7 +12,7 @@ __PACKAGE__->configure({
     connection_class => "DBIx::Deploy::Connection::SQLite",
 });
 
-sub driver {
+sub driver_hint {
     return "SQLite";
 }
 

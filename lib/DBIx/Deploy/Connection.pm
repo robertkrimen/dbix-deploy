@@ -8,7 +8,7 @@ use DBI;
 use Carp::Clan;
 
 has engine => qw/is ro required 1 weak_ref 1/;
-has $_ => qw/is ro/ for qw/source database username password attributes/;
+has [qw/linkage source database username password attributes/] => qw/is ro/;
 has handle => qw/is ro lazy 1/, default => sub {
     my $self = shift;
     return $self->connect;
@@ -35,28 +35,64 @@ sub disconnect {
     return $self->close;
 }
 
+sub _parse_linkage {
+    my $class = shift;
+    my $linkage = shift;
+    my $driver_hint = shift;
+
+    my ($database, $source_template) = split m/\|/, $linkage;
+    $database = $linkage unless $database;
+    $source_template = $driver_hint unless $source_template;
+
+    croak "Don't know how to generate database source" unless defined $source_template;
+
+    if ($source_template =~ m/^\s*(?:Pg|PostgreS(?:QL)?)\s*$/i) {
+        $source_template = "dbi:Pg:dbname=\%database";
+    }
+    elsif ($source_template =~ m/^\s*MySQL\s*$/i) {
+        $source_template = "dbi:mysql:dbname=\%database";
+    }
+    elsif ($source_template =~ m/^\s*SQLite\s*$/i) {
+        $source_template = "dbi:SQLite:dbname=\%database";
+    }
+
+    my $source = $source_template;
+    $source =~ s/%database/$database/g;
+
+    return ($source, $database);
+}
+
+
 sub parse {
     my $class = shift;
-    my $engine = shift;
-    my $name = shift;
 
-    my ($database, $username, $password, $attributes);
+    my ($linkage, $username, $password, $attributes);
     if (ref $_[0] eq "ARRAY") {
-        ($database, $username, $password, $attributes) = @{ $_[0] };
+        ($linkage, $username, $password, $attributes) = @{ $_[0] };
         shift;
     }
     elsif (ref $_[0] eq "HASH") {
-        ($database, $username, $password, $attributes) = @{ $_[0] }{qw/database username password attributes/};
+        ($linkage, $username, $password, $attributes) = @{ $_[0] }{qw/database username password attributes/};
         shift;
     }
     else {
         croak "Don't know what to do with $_[0]";
     }
 
-    $database = $engine->connection($1)->database if $database && ! ref $database && $database =~ m/^\$(.*)$/;
+    my $engine = shift;
+    my $name = shift;
+    my $driver_hint = shift;
+
+    $driver_hint = $engine->driver_hint unless defined $driver_hint;
+
+    $linkage = $engine->connection($1)->linkage if $linkage && ! ref $linkage && $linkage =~ m/^\$(.*)$/;
     $username = $engine->connection($1)->username if $username && ! ref $username && $username =~ m/^\$(.*)$/;
     $password = $engine->connection($1)->password if $password && ! ref $password && $password =~ m/^\$(.*)$/;
     $attributes = $engine->connection($1)->attributes if $attributes && ! ref $attributes && $attributes =~ m/^\$(.*)$/;
+
+    $linkage = $$linkage if ref $linkage eq "SCALAR";
+
+    my ($source, $database) = $class->_parse_linkage($linkage, $driver_hint);
 
     if ($password && $password =~ s/\s*<//) {
         my $key = $password;
@@ -69,13 +105,11 @@ sub parse {
         $password = $engine->password(key => $key, prompt => "Enter password for $identity ($name):");
     }
 
-    for ($database, $username, $password, $attributes) {
+    for ($username, $password, $attributes) {
         $_ = $$_ if ref $_ eq "SCALAR";
     }
 
-    my $source = "dbi:" . $engine->driver . ":dbname=$database";
-
-    return $class->new(engine => $engine, source => $source, database => $database, username => $username, password => $password, attributes => $attributes, @_);
+    return $class->new(engine => $engine, linkage => $linkage, source => $source, database => $database, username => $username, password => $password, attributes => $attributes, @_);
 }
 
 sub run {
@@ -113,10 +147,10 @@ sub run {
 sub connectable {
     my $self = shift;
 
-    my ($database, $username, $password, $attributes) = $self->information;
+    my ($source, $username, $password, $attributes) = $self->information;
     $attributes ||= {};
     $attributes->{$_} = 0 for qw/PrintWarn PrintError RaiseError/;
-    my $dbh = DBI->connect($database, $username, $password, $attributes);
+    my $dbh = DBI->connect($source, $username, $password, $attributes);
     my $success = $dbh && ! $dbh->err && $dbh->ping;
     $dbh->disconnect if $dbh;
     return $success;

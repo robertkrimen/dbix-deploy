@@ -6,7 +6,7 @@ use strict;
 use Moose;
 extends qw/DBIx::Deploy::Engine/;
 
-sub driver {
+sub driver_hint {
     return "Pg";
 }
 

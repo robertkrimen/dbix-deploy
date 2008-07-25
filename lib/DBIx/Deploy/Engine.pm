@@ -11,7 +11,6 @@ use Template;
 use SQL::Script;
 use DBIx::Deploy::Connection;
 use DBIx::Deploy::Step;
-use DBIx::Deploy::Stash;
 use DBIx::Deploy::Context;
 use DBIx::Deploy::Command;
 use Term::Prompt();
@@ -30,8 +29,6 @@ DBIx::Deploy::Engine
 
 A connection specification specifies the DBI connections used by the engine. The most basic format is an array reference of what
 you would pass to DBI->connect(...):
-
-    
 
 =head1 Engine configuration
 
@@ -69,9 +66,9 @@ An engine configuration is a hash containing the following:
 
 =head1 Scripting setup/create/populate/teardown
 
-A script is a list (array reference) composed of steps. The steps are run through in order according to their rank.
+A script is a list (array reference) composed of steps. The steps are run in-order according to their rank.
 
-SQL in a step (from a SCALAR reference or a file) will be first processed via Template Toolkit. 
+SQL in a step (from a SCALAR reference or a file) will be first processed via Template Toolkit (L<Template>). 
 The result will be split using L<SQL::Script> with the following pattern: C</\n\s*-{2,4}\n/>
 
 That is, a newline, followed by optional whitespace, followed by 2 to 4 dashes and another newline. For example:
@@ -90,13 +87,13 @@ A step can be:
 
 Execute the SQL in the <file> using the current connection
 
-    ..., /path/to/sql/extra.sql, ...
+    ..., /some/path/extra.sql, ...
 
 =head2 <directory>
 
 Execute the SQL in the file <directory>/<stage>{.sql, .tt2.sql, .tt.sql, .tt2, .tt} using the current connection
 
-    ..., /path/to/sql/, ...
+    ..., /some/path/, ...
 
     # If the current stage is "create", then the above will use /path/to/sql/create.sql (or one of the other extensions)
 
@@ -104,6 +101,8 @@ Execute the SQL in the file <directory>/<stage>{.sql, .tt2.sql, .tt.sql, .tt2, .
 
 Execute the SQL contained in SCALAR using the current connection. Again, statements should be separated using a double dash at the
 beginning of the line (as described above).
+
+=head2 CODE
 
 =head2 rank <rank>
 
@@ -135,9 +134,9 @@ Not a step per se. Will set the connection of the following steps to <connection
 
 #    =head2 ARRAY
 
-
-sub driver {
+sub driver_hint {
     my $self = shift;
+    return undef;
     croak "Don't have a driver for $self";
 }
 
@@ -149,7 +148,7 @@ has template => qw/is ro required 1 lazy 1/, default => sub {
     return Template->new({});
 };
 
-has [qw/stash _script _connection _password/] => qw/is ro required 1 lazy 1 isa HashRef/, default => sub { {} };
+has [qw/_script _connection _password/] => qw/is ro required 1 lazy 1 isa HashRef/, default => sub { {} };
 
 sub connection {
     my $self = shift;
@@ -169,7 +168,7 @@ sub connection {
             $connection = [ qw/$user $superdatabase $superdatabase $user/ ],
         }
         croak "Don't have a connection definition for $name" unless $connection;
-        $self->configuration->{connection_class}->parse($self, $name, $connection);
+        $self->configuration->{connection_class}->parse($connection, $self, $name);
     };
 }
 
@@ -354,7 +353,7 @@ sub information {
     return $self->connection->information;
 }
 
-sub prepare_SQL_context {
+sub _prepare_template_context {
     my $self = shift;
     my $context = shift || {};
 
@@ -375,35 +374,7 @@ sub prepare_SQL_context {
     return $context;
 }
 
-sub run_SQL {
-    my $self = shift;
-    my $SQL = shift;
-    my $context = $self->prepare_SQL_context(shift);
-
-    my @statements = $self->generate_SQL($SQL, $context);
-    my $connection = $context->{connection};
-    $connection->run(\@statements, $context);
-}
-
-sub generate_SQL {
-    my $self = shift;
-    my $input = shift;
-    my $context = $self->prepare_SQL_context(shift);
-
-    $input = "$input" if blessed $input && $input->isa("Path::Class::File");
-
-    croak "Don't have a template" unless $input;
-    croak "Don't understand template \"$input\"" unless ref $input eq 'SCALAR' || ref $input eq '';
-    my $script = $self->_template_process($input, $context);
-
-    return $script unless wantarray;
-
-    $self->script_parser->read($script);
-    my @statements = $self->script_parser->statements;
-    return @statements;
-}
-
-sub _template_process {
+sub _process_template {
     my $self = shift;
     my $template = shift;
     my $context = shift || {};
@@ -412,6 +383,34 @@ sub _template_process {
     $self->template->process($template, $context, \$output) or die $self->template->error;
 
     return \$output;
+}
+
+sub run {
+    my $self = shift;
+    my $input = shift;
+    my $context = $self->_prepare_template_context(shift);
+
+    my @statements = $self->generate($input, $context);
+    my $connection = $context->{connection};
+    $connection->run(\@statements, $context);
+}
+
+sub generate {
+    my $self = shift;
+    my $input = shift;
+    my $context = $self->_prepare_template_context(shift);
+
+    $input = "$input" if blessed $input && $input->isa("Path::Class::File");
+
+    croak "Don't have a template" unless $input;
+    croak "Don't understand template \"$input\"" unless ref $input eq 'SCALAR' || ref $input eq '';
+    my $script = $self->_process_template($input, $context);
+
+    return $script unless wantarray;
+
+    $self->script_parser->read($script);
+    my @statements = $self->script_parser->statements;
+    return @statements;
 }
 
 sub database_exists {

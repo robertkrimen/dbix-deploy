@@ -16,7 +16,7 @@ DBIx::Deploy::MySQL
 
     my $deploy = DBIx::Deploy::MySQL->new(
         [ "my_database", "my_database_user" ], [ "postgres", "template1", "password" ],
-            "path/to/SQL");
+            "path/to/SQL", { ... });
 
     my $dbh = DBI->connect($deploy->information); # Database will deploy automatically if it doesn't exist
 
@@ -40,14 +40,14 @@ may be passed in name only (that is, "my_database" instead of "DBI:mysql:databas
 
 The <directory> argument should point to a directory on disk containing something like:
 
-    setup.sql
-    create.sql
-    populate.sql
-    teardown.sql
+    <directory>/setup.sql
+    <directory>/create.sql
+    <directory>/populate.sql
+    <directory>/teardown.sql
 
 If a file doesn't exist, then it won't be run.
 
-Finally, any remaining arguments will be passed through to the configuration of L<DBIx::Deploy::Engine>
+Finally, the content of the trailing (optional) HASH reference will be passed through to the configuration of L<DBIx::Deploy::Engine>
 
 =cut
 

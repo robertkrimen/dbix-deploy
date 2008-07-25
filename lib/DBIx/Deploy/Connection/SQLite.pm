@@ -4,13 +4,13 @@ use strict;
 use warnings;
 
 use Moose;
-use Carp::Clan;
+use DBIx::Deploy::Carp;
 
 extends qw/DBIx::Deploy::Connection/;
 
 before connect => sub {
     my $self = shift;
-    my $database = $self->database;
+    my $database = Path::Class::Dir->new($self->database);
     $database->parent->mkpath unless -d $database->parent;
 };
 
@@ -21,26 +21,28 @@ sub database_exists {
 
 sub parse {
     my $class = shift;
-    my $name = shift;
-    my $engine = shift;
 
-    my ($database, $attributes);
+    my ($linkage, $attributes);
     if (ref $_[0] eq "ARRAY") {
-        ($database, $attributes) = @{ $_[0] };
+        ($linkage, $attributes) = @{ $_[0] };
         shift;
     }
     elsif (ref $_[0] eq "HASH") {
-        ($database, $attributes) = @{ $_[0] }{qw/database attributes/};
+        ($linkage, $attributes) = @{ $_[0] }{qw/database attributes/};
         shift;
     }
     elsif ($_[0]) {
-        $database = shift;
+        $linkage = shift;
     }
     else {
         croak "Don't know what to do";
     }
 
-    return $class->SUPER::parse($name => $engine, [ $database, undef, undef, $attributes ]);
+    my $engine = shift;
+    my $name = shift;
+    my $driver_hint = shift;
+
+    return $class->SUPER::parse([ $linkage, undef, undef, $attributes ], $engine, $name, $driver_hint);
 }
 
 1;

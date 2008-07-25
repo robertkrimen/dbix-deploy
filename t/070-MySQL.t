@@ -14,7 +14,7 @@ my @user = t::Test->get_MySQL_user;
 my $deploy = t::Test::MySQL->deploy;
 ok($deploy);
 
-my $setup = sub { $deploy->generate_SQL($deploy->_script->{setup}->[0]->command->arguments->{sql}) };
+my $setup = sub { $deploy->generate($deploy->_script->{setup}->[0]->command->arguments->{sql}) };
 is(${ $setup->() }, <<_END_);
 CREATE DATABASE $user[0];
 --
@@ -27,7 +27,7 @@ cmp_deeply([ $setup->() ], [
 ]);
 
 
-my $teardown = sub { $deploy->generate_SQL($deploy->_script->{teardown}->[0]->command->arguments->{sql}) };
+my $teardown = sub { $deploy->generate($deploy->_script->{teardown}->[0]->command->arguments->{sql}) };
 is(${ $teardown->() }, <<_END_);
 DROP DATABASE $user[0];
 --
@@ -38,7 +38,7 @@ cmp_deeply([ $teardown->() ], [
     "DROP USER $user[1];",
 ]);
 
-my $create = sub { $deploy->generate_SQL($deploy->_script->{create}->[0]->command->arguments->{sql}) };
+my $create = sub { $deploy->generate($deploy->_script->{create}->[0]->command->arguments->{sql}) };
 is(${ $create->() }, <<_END_);
 CREATE TABLE deploy_test (
     hello_world     TEXT

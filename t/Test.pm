@@ -4,6 +4,7 @@ use strict;
 use warnings;
 
 use DBIx::Deploy;
+use DBIx::Deploy::Engine;
 use DBIx::Deploy::Engine::PostgreSQL;
 use DBIx::Deploy::Engine::SQLite;
 use DBIx::Deploy::Engine::MySQL;

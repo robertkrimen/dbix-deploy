@@ -18,7 +18,7 @@ DBIx::Deploy::SQLite
 
     my $deploy = DBIx::Deploy::SQLite->new(
         [ "my_database", "my_database_user" ], [ "postgres", "template1", "password" ],
-            "path/to/SQL");
+            "path/to/SQL", { ... });
 
     my $dbh = DBI->connect($deploy->information); # Database will deploy automatically if it doesn't exist
 
@@ -39,7 +39,7 @@ The <directory> argument should point to a directory on disk containing somethin
     <directory>/create.sql
     <directory>/populate.sql
 
-Finally, any remaining arguments will be passed through to the configuration of L<DBIx::Deploy::Engine>
+Finally, the content of the trailing (optional) HASH reference will be passed through to the configuration of L<DBIx::Deploy::Engine>
 
 =cut
 

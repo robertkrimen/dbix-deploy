@@ -47,14 +47,14 @@ has arguments => qw/is ro required 1 isa HashRef/, default => sub { {} };
             croak "Don't have file" unless $file;
             croak "File $file doesn't exist" unless -f $file;
 
-            $context->engine->run_SQL($file, $context);
+            $context->engine->run($file, $context);
         },
 
         sql => sub {
             my $self = shift;
             my $context = shift;
 
-            $context->engine->run_SQL($self->arguments->{sql}, $context);
+            $context->engine->run($self->arguments->{sql}, $context);
         },
 
         code => sub {
