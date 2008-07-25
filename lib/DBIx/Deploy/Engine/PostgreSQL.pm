@@ -20,8 +20,8 @@ sub _database_exists {
 sub _schema_exists {
     my $self = shift;
 
-    if ($self->stash->{schema_exists} && ref $self->stash->{schema_exists} eq "") {
-        my $result = $self->connection->select_value('SELECT COUNT(*) FROM pg_tables WHERE tablename = ?', $self->stash->{schema_exists});
+    if ($self->configuration->{schema_exists} && ref $self->configuration->{schema_exists} eq "") {
+        my $result = $self->connection->select_value('SELECT COUNT(*) FROM pg_tables WHERE tablename = ?', $self->configuration->{schema_exists});
         return $result;
     }
 
@@ -36,7 +36,7 @@ sub populated {
     my $self = shift;
     my $connection = shift || $self->connection;
 
-    return 1 unless defined (my $populated = $self->stash->{populated}); # By default, assume the database is populated
+    return 1 unless defined (my $populated = $self->configuration->{populated}); # By default, assume the database is populated
     $populated =~ s/\W//; # Detaint this puppy
     my $result = $connection->select_value("SELECT COUNT(*) FROM $populated");
     return $result > 0 ? 1 : 0;

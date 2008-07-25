@@ -28,13 +28,13 @@ after teardown => sub {
     unlink $connection->database or warn $!;
 };
 
-after prepare_stash => sub {
+after _prepare_configuration => sub {
     my $self = shift;
 
-    my $stash = $self->stash;
+    my $configuration = $self->configuration;
 
-    if (! $stash->{connection}->{user} && $stash->{database}) {
-        $stash->{connection}->{user} = delete $stash->{database};
+    if (! $configuration->{connection}->{user} && $configuration->{database}) {
+        $configuration->{connection}->{user} = delete $configuration->{database};
     }
 };
 

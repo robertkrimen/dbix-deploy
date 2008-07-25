@@ -46,18 +46,19 @@ Finally, any remaining arguments will be passed through to the configuration of 
 sub new {
     my $class = shift;
 
-    my $cfg = {};
-    $cfg = pop if @_ && ref $_[@_ - 1] eq "HASH";
+    my $configuration = {};
+    $configuration = pop if @_ && ref $_[@_ - 1] eq "HASH";
 
-    defined $_[0] ? $cfg->{database} = shift : shift if @_;
+    defined $_[0] ? $configuration->{database} = shift : shift if @_;
     if (@_) {
-        my $from = shift;
-        for (qw/create populate/) {
-            $cfg->{$_} = "?$from" unless exists $cfg->{$_};
+        my $dir = shift;
+        for my $stage (qw/create populate/) {
+            next if $configuration->{"skip_${stage}_file"};
+            unshift @{ $configuration->{$stage} }, "sqlfile:*?:$dir/$stage";
         }
     }
     
-    return DBIx::Deploy::Engine::SQLite->new(configure => $cfg);
+    return DBIx::Deploy::Engine::SQLite->new(configuration => $configuration);
 }
 
 1;

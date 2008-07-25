@@ -5,15 +5,19 @@ use strict;
 
 use Moose;
 use base qw/Class::Accessor::Grouped/;
+use DBIx::Deploy::Carp;
 
 use Template;
 use SQL::Script;
-use Carp;
 use DBIx::Deploy::Connection;
+use DBIx::Deploy::Step;
 use DBIx::Deploy::Stash;
+use DBIx::Deploy::Context;
+use DBIx::Deploy::Command;
 use Term::Prompt();
+use Hash::Merge::Simple qw/merge/;
 
-__PACKAGE__->mk_group_accessors(inherited => qw/_base_stash/);
+__PACKAGE__->mk_group_accessors(inherited => qw/configuration/);
 __PACKAGE__->configure({
     connection_class => "DBIx::Deploy::Connection",
 });
@@ -63,33 +67,12 @@ An engine configuration is a hash containing the following:
 
     teardown => A script for tearing down the database (e.g. dropdb with PostgreSQL). Run via the C<superdatabase> connection.
 
-    before => {
-    
-        setup => A script that will run before the (main) setup script.
-
-        create => A script that will run before the (main) create script.
-
-        populate => A script that will run before the (main) populate script.
-
-        teardown => A script that will run before the (main) teardown script.
-    }
-
-    after => {
-    
-        setup => A script that will run after the (main) setup script.
-
-        create => A script that will run after the (main) create script.
-
-        populate => A script that will run after the (main) populate script.
-
-        teardown => A script that will run after the (main) teardown script.
-    }
-
 =head1 Scripting setup/create/populate/teardown
 
-A script is a list (array reference) composed of steps. The steps are run through in order.
+A script is a list (array reference) composed of steps. The steps are run through in order according to their rank.
 
-SQL in a step will be first processed via Template Toolkit.  The result will be split using L<SQL::Script> with the following pattern: C</\n\s*-{2,4}\n/>
+SQL in a step (from a SCALAR reference or a file) will be first processed via Template Toolkit. 
+The result will be split using L<SQL::Script> with the following pattern: C</\n\s*-{2,4}\n/>
 
 That is, a newline, followed by optional whitespace, followed by 2 to 4 dashes and another newline. For example:
 
@@ -102,16 +85,6 @@ That is, a newline, followed by optional whitespace, followed by 2 to 4 dashes a
     --
 
 A step can be:
-
-=head2 ~<connection> 
-
-Set the connection for the following STEP to be <connection>
-
-After the following STEP, the connection will revert to the default connection
-
-    ..., ~user => \"CREATE TABLE ...", ...
-
-    ..., ~superuser => \"CREATE TABLE ...", ...
 
 =head2 <file>
 
@@ -132,13 +105,35 @@ Execute the SQL in the file <directory>/<stage>{.sql, .tt2.sql, .tt.sql, .tt2, .
 Execute the SQL contained in SCALAR using the current connection. Again, statements should be separated using a double dash at the
 beginning of the line (as described above).
 
+=head2 rank <rank>
+
+Not a step per se. Will set the rank of the following steps to the integer value <rank> (which can be negative or positive). The default rank is 0.
+
+=head2 stage <stage>
+
+Not a step per se. Will set the stage of the following steps to <stage> (which should be one of C<create>, C<populate>, C<setup>, or C<teardown>)
+
+=head2 connection <connection>
+
+Not a step per se. Will set the connection of the following steps to <connection> (usually C<user>, C<superuser>, or C<superdatabase>)
+
 =cut
 
-    #=head2 CODE
+#    =head2 ~<connection> 
 
-    #Execute CODE, passing in: the engine,  the remaining script (as an array reference) 
+#    Set the connection for the following STEP to be <connection>
 
-    #=head2 ARRAY
+#    After the following STEP, the connection will revert to the default connection
+
+#        ..., ~user => \"CREATE TABLE ...", ...
+
+#        ..., ~superuser => \"CREATE TABLE ...", ...
+
+#    =head2 CODE
+
+#    Execute CODE, passing in: the engine,  the remaining script (as an array reference) 
+
+#    =head2 ARRAY
 
 
 sub driver {
@@ -146,7 +141,7 @@ sub driver {
     croak "Don't have a driver for $self";
 }
 
-has script => qw/is ro required 1 lazy 1/, default => sub {
+has script_parser => qw/is ro required 1 lazy 1/, default => sub {
     return SQL::Script->new(split_by => qr/\n\s*-{2,4}\n/);
 };
 
@@ -154,57 +149,60 @@ has template => qw/is ro required 1 lazy 1/, default => sub {
     return Template->new({});
 };
 
-has _connection => qw/is ro required 1 lazy 1/, default => sub { {} };
-
-has stash => qw/is ro/;
-
-has password_store => qw/is ro required 1 lazy 1 isa HashRef/, default => sub { {} };
+has [qw/stash _script _connection _password/] => qw/is ro required 1 lazy 1 isa HashRef/, default => sub { {} };
 
 sub connection {
     my $self = shift;
     my $name = shift;
     $name = "user" unless defined $name;
+    if ($name =~ m/\|/) {
+        my @name = split m/\|/, $name;
+        for my $name (@name) {
+            next unless $self->configuration->{connection}->{$name};
+            return $self->connection($name);
+        }
+        croak "Unable to find a connection for $name";
+    }
     return $self->_connection->{$name} ||= do {
-        my $connection = $self->stash->{connection}->{$name};
+        my $connection = $self->configuration->{connection}->{$name};
         if (! $connection && $name eq "superuser") {
             $connection = [ qw/$user $superdatabase $superdatabase $user/ ],
         }
         croak "Don't have a connection definition for $name" unless $connection;
-        $self->stash->{connection_class}->parse($self, $name, $connection);
+        $self->configuration->{connection_class}->parse($self, $name, $connection);
     };
 }
 
-sub prepare_stash {
+sub password {
     my $self = shift;
-    my $stash = shift;
+    my %given = @_;
 
-    $stash->{connection} ||= {};
-    $stash->{script} ||= {};
+    my $key = $given{key};
+    $given{save} = 1 unless exists $given{save};
 
-    for (qw/user superuser superdatabase/) {
-        if (exists $stash->{$_}) {
-            my $value = delete $stash->{$_};
-            $stash->{connection}->{$_} = $value unless exists $stash->{connection}->{$_}
+    if ($given{force} || ! defined $self->_password->{$key}) {
+
+        unless ($Test::Builder::VERSION) {
+            croak "Can't read password prompt from non-tty STDIN" unless -t STDIN && -t STDOUT;
         }
+
+        my $password = Term::Prompt::prompt(P => $given{prompt} || "Enter password:", $given{help} || '', '');
+        $self->_password->{$key} = $password if $given{save};
+        return $password;
     }
 
-    for (qw/setup teardown create populate/) {
-        if (exists $stash->{$_}) {
-            my $value = delete $stash->{$_};
-            $stash->{script}->{$_} = $value unless exists $stash->{script}->{$_}
-        }
-    }
-
-    $self->{stash} = $stash;
+    return $self->_password->{$key};
 }
 
 sub BUILD {
     my $self = shift;
-    my $new = shift;
-    my $configure = $new->{configure} || {};
-    my $stash = $self->configure($configure);
+    my $given = shift;
 
-    $self->prepare_stash($stash);
+    my $configuration = $self->configure($given->{configuration} || {});
+
+    $self->_prepare_configuration($configuration);
+    $self->_prepare_script(delete $configuration->{$_}, stage => $_) for qw/create populate setup teardown/;
+    $self->_prepare_script(delete $configuration->{script}, qw/stage create/);
 
     if ($self->{template}) {
         if (ref $self->{template} eq "" || (blessed $self->{template} && $self->{template}->isa("Path::Class::Dir"))) {
@@ -223,33 +221,174 @@ sub BUILD {
     return $self;
 }
 
-sub password {
+sub configure {
     my $self = shift;
-    my %given = @_;
-
-    my $key = $given{key};
-    $given{save} = 1 unless exists $given{save};
-
-    if ($given{force} || ! defined $self->password_store->{$key}) {
-
-        unless ($Test::Builder::VERSION) {
-            croak "Can't read password prompt from non-tty STDIN" unless -t STDIN && -t STDOUT;
-        }
-
-        my $password = Term::Prompt::prompt(P => $given{prompt} || "Enter password:", $given{help} || '', '');
-        $self->password_store->{$key} = $password if $given{save};
-        return $password;
-    }
-
-    return $self->password_store->{$key};
+    my $override = shift;
+    my $base = $self->configuration || {};
+    return $self->configuration(merge $base, $override);
 }
 
-sub generate {
+sub _prepare_configuration {
     my $self = shift;
-    my $input = shift;
+    my $configuration = shift;
+
+    $configuration->{connection} ||= {};
+    for my $name (qw/user superuser superdatabase/) {
+        my $connection = delete $configuration->{$name};
+        $configuration->{connection}->{$name} = $connection if $connection;
+    }
+}
+
+sub _prepare_script {
+    my $self = shift;
+    my $script = shift;
+    my %default = @_;
+
+    return unless $script;
+
+    $script = [ $script ] unless ref $script eq "ARRAY";
+
+    croak "Don't understand script $script" unless ref $script eq "ARRAY";
+
+    my @script = @$script;
+
+    while (@script) {
+        local $_ = shift @script;
+        next unless $_;
+        if (! ref) {
+            if ($_ =~ m/^(?:rank|stage|connection|as)$/) {
+                $default{$_} = shift @script;
+                next;
+            }
+            elsif ($_ =~ m/^(?:step|do)$/) {
+                $self->do(%default, %{ shift @script });
+                next;
+            }
+        }
+
+        $self->do(%default, command => $_);
+    }
+}
+
+sub do {
+    my $self = shift;
+    my $step = @_ == 1 && ref $_[0] eq "HASH" ? shift : { @_ };
+    $step = DBIx::Deploy::Step->new(%$step);
+    push @{ $self->_script->{$step->stage} }, $step;
+    return $step;
+}
+
+sub _run_script {
+    my $self = shift;
+    my $stage = shift;
+    my $stash = { @_ };
+
+    $stash->{stage} = $stage;
+    $stash->{engine} = $self;
+    my $context = DBIx::Deploy::Context->new(stash => $stash);
+
+    my @script = sort { $a->rank <=> $b->rank } @{ $self->_script->{$stage} || [] };
+
+    for my $step (@script) {
+        $self->_run_step($step, $context);
+    }
+}
+
+sub _run_step {
+    my $self = shift;
+    my $step = shift;
+    my $context = shift;
+
+    $step->execute($context);
+}
+
+sub create {
+    my $self = shift;
+    return $self->_run_script("create", ignore_missing => 1, default_connection => "user", @_);
+}
+
+sub populate {
+    my $self = shift;
+    return $self->_run_script("populate", ignore_missing => 1, default_connection => "user", @_);
+}
+
+sub setup {
+    my $self = shift;
+    return $self->_run_script("setup", ignore_missing => 1, default_connection => "superdatabase|superuser|user", @_);
+}
+
+sub teardown {
+    my $self = shift;
+    return $self->_run_script("teardown", raise_error => 0, ignore_missing => 1, default_connection => "superdatabase|superuser|user", @_);
+}
+
+sub deploy {
+    my $self = shift;
+
+    if (defined (my $database_exists = $self->database_exists)) {
+        if ($database_exists) {
+            if (defined (my $schema_exists = $self->schema_exists)) {
+                unless ($schema_exists) {
+                    $self->create;
+                    $self->populate;
+                }
+            }
+        }
+        else {
+            $self->setup;
+            $self->create;
+            $self->populate;
+        }
+    }
+
+    $self->connection->disconnect;
+
+    return $self->connection->information;
+}
+
+sub information {
+    my $self = shift;
+    local %_ = @_;
+    $_{deploy} = 1 unless exists $_{deploy};
+    $self->deploy if $_{deploy};
+    return $self->connection->information;
+}
+
+sub prepare_SQL_context {
+    my $self = shift;
     my $context = shift || {};
 
-    $self->_generate_prepare_context($context);
+    if (blessed $context) {
+        my %context;
+        %context = %{ $context->stash };
+        $context{context} = $context;
+        $context{connection} = $context->connection;
+        $context = \%context;
+    }
+    else {
+        $context->{engine} ||= $self;
+        $context->{connection} ||= $context->{engine}->connection;
+    }
+
+    $context->{user} ||= $context->{engine}->connection;
+
+    return $context;
+}
+
+sub run_SQL {
+    my $self = shift;
+    my $SQL = shift;
+    my $context = $self->prepare_SQL_context(shift);
+
+    my @statements = $self->generate_SQL($SQL, $context);
+    my $connection = $context->{connection};
+    $connection->run(\@statements, $context);
+}
+
+sub generate_SQL {
+    my $self = shift;
+    my $input = shift;
+    my $context = $self->prepare_SQL_context(shift);
 
     $input = "$input" if blessed $input && $input->isa("Path::Class::File");
 
@@ -259,18 +398,63 @@ sub generate {
 
     return $script unless wantarray;
 
-    $self->script->read($script);
-    my @statements = $self->script->statements;
+    $self->script_parser->read($script);
+    my @statements = $self->script_parser->statements;
     return @statements;
 }
 
-sub _generate_prepare_context {
+sub _template_process {
     my $self = shift;
-    my $context = shift;
+    my $template = shift;
+    my $context = shift || {};
 
-    $context->{engine} = $self;
-    $context->{connection} = $self->connection;
+    my $output;
+    $self->template->process($template, $context, \$output) or die $self->template->error;
+
+    return \$output;
 }
+
+sub database_exists {
+    my $self = shift;
+    if (ref $self->configuration->{database_exists} eq "CODE") {
+        return $self->configuration->{database_exists}->($self);
+    }
+    return $self->_database_exists;
+}
+
+sub _database_exists {
+    # Placeholder to be overridden
+    return undef;
+}
+
+sub schema_exists {
+    my $self = shift;
+    if (ref $self->configuration->{schema_exists} eq "CODE") {
+        return $self->configuration->{schema_exists}->($self);
+    }
+    return $self->_schema_exists;
+}
+
+sub _schema_exists {
+    # Placeholder to be overridden
+    return undef;
+}
+
+sub ready {
+    my $self = shift;
+    if (ref $self->configuration->{ready} eq "CODE") {
+        return $self->configuration->{ready}->($self);
+    }
+}
+
+sub _ready {
+    my $self = shift;
+    return $self->database_exists && $self->schema_exists;
+}
+
+1;
+
+__END__
 
 sub _run_from_file {
     my $self = shift;
@@ -309,24 +493,6 @@ sub _run_from_all {
     $dir = Path::Class::dir($dir);
 
     croak "Uhh, not ready yet";
-}
-
-sub run_script_sequence {
-    my $self = shift;
-    my $name = shift;
-
-    my $stash = $self->stash->{script};
-    my $script;
-
-    if ($stash->{before} && ($script = $stash->{before}->{$name})) {
-        $self->run_script($name, script => $script, @_);
-    }
-
-    $self->run_script($name, script => $stash->{$name}, @_);
-
-    if ($stash->{after} && ($script = $stash->{after}->{$name})) {
-        $self->run_script($name, script => $script, @_);
-    }
 }
 
 sub run_script {
@@ -403,120 +569,6 @@ STEP:
             croak "Don't understand step: $step";
         }
     }
-}
-
-sub _template_process {
-    my $self = shift;
-    my $template = shift;
-    my $context = shift || {};
-
-    my $output;
-    $self->template->process($template, $context, \$output) or die $self->template->error;
-
-    return \$output;
-}
-
-sub database_exists {
-    my $self = shift;
-    if (ref $self->stash->{database_exists} eq "CODE") {
-        return $self->stash->{database_exists}->($self);
-    }
-    return $self->_database_exists;
-}
-
-sub _database_exists {
-    return undef;
-}
-
-sub schema_exists {
-    my $self = shift;
-    if (ref $self->stash->{schema_exists} eq "CODE") {
-        return $self->stash->{schema_exists}->($self);
-    }
-    return $self->_schema_exists;
-}
-
-sub _schema_exists {
-    return undef;
-}
-
-sub _superdatabase_or_super_or_user_connection {
-    my $self = shift;
-    for (qw/superdatabase superuser user/) {
-        return $self->connection($_) if $self->stash->{connection}->{$_};
-    }
-    croak "Urgh, don't have any connection to return";
-}
-
-sub ready {
-    my $self = shift;
-    if (ref $self->stash->{ready} eq "CODE") {
-        return $self->stash->{ready}->($self);
-    }
-}
-
-sub _ready {
-    my $self = shift;
-    return $self->database_exists && $self->schema_exists;
-}
-
-sub create {
-    my $self = shift;
-    return $self->run_script_sequence("create", ignore_missing => 1, @_);
-}
-
-sub populate {
-    my $self = shift;
-    return $self->run_script_sequence("populate", ignore_missing => 1, @_);
-}
-
-sub setup {
-    my $self = shift;
-    return $self->run_script_sequence("setup", ignore_missing => 1, connection => $self->_superdatabase_or_super_or_user_connection, @_);
-}
-
-sub teardown {
-    my $self = shift;
-    return $self->run_script_sequence("teardown", raise_error => 0, ignore_missing => 1, connection => $self->_superdatabase_or_super_or_user_connection, @_);
-}
-
-sub deploy {
-    my $self = shift;
-
-    if (defined (my $database_exists = $self->database_exists)) {
-        if ($database_exists) {
-            if (defined (my $schema_exists = $self->schema_exists)) {
-                unless ($schema_exists) {
-                    $self->create;
-                    $self->populate;
-                }
-            }
-        }
-        else {
-            $self->setup;
-            $self->create;
-            $self->populate;
-        }
-    }
-
-    $self->connection->disconnect;
-
-    return $self->connection->information;
-}
-
-sub information {
-    my $self = shift;
-    local %_ = @_;
-    $_{deploy} = 1 unless exists $_{deploy};
-    $self->deploy if $_{deploy};
-    return $self->connection->information;
-}
-
-sub configure {
-    my $self = shift;
-    my $override = shift;
-    my $base = $self->_base_stash || {};
-    return $self->_base_stash(DBIx::Deploy::Stash->merge($base, $override));
 }
 
 1;

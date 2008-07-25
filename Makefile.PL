@@ -17,16 +17,14 @@ all_from 'lib/DBIx/Deploy.pm';
 }
 
 {
-    for (grep { ! /^\s*#/ } split m/\n/, <<_END_) {
+    map { my ($pk, $vr) = split m/\s/; build_requires $pk => $vr || 0 } grep { ! /^\s*#/ } split m/\n/, <<_END_;
+Test::More
 _END_
-        my ($package, $version) = split m/\s/;
-        requires $package => $version || 0;
-    }
+
+    map { my ($pk, $vr) = split m/\s/; requires $pk => $vr || 0 } grep { ! /^\s*#/ } split m/\n/, <<_END_;
+Term::Prompt
+_END_
 }
-
-build_requires 'Test::More';
-
-requires 'Term::Prompt';
 
 auto_install;
 

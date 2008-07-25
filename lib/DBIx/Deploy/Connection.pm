@@ -81,9 +81,10 @@ sub parse {
 sub run {
     my $self = shift;
     my $statements = shift;
-    local %_ = @_;
+    my $context = shift;
 
-    $_{raise_error} = 1 unless exists $_{raise_error};
+    my $raise_error = 1;
+    $raise_error = $context->{raise_error} if exists $context->{raise_error};
 
     my $dbh = $self->connect;
     unless ($dbh) {
@@ -94,11 +95,11 @@ sub run {
     for my $statement (@$statements) {
         eval {
             chomp $statement;
-            warn "$statement\n" if $ENV{DBIX_DEPLOY_TRACE};
+            warn "$statement\n" if $ENV{TRACE_DBIX_DEPLOY};
             $dbh->do($statement) or die $dbh->errstr;
         };
         if (my $error = $@) {
-            if ($_{raise_error}) {
+            if ($raise_error) {
                 die $error;
             }
             else {

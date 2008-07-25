@@ -20,9 +20,9 @@ use Carp;
 
 sub create {
     my $class = shift;
-    local %_ = @_;
+    my %given = @_;
 
-    my $engine = delete $_{engine};
+    my $engine = delete $given{engine};
 
     my $engine_class = $engine || '';
 
@@ -42,13 +42,13 @@ sub create {
         eval "require $engine_class;" or croak "Couldn't find engine: $engine_class: $@";
     }
 
-    my $configure = delete $_{configure} || delete $_{config};
-    if (! $configure) {
-        $configure = { %_ };
-        %_ = ();
+    my $configuration = delete $given{configuration} || delete $given{config} || delete $given{configure};
+    if (! $configuration) {
+        $configuration = { %given };
+        undef %given;
     }
 
-    return $engine_class->new(configure => $configure, %_);
+    return $engine_class->new(configuration => $configuration, %given);
 }
 
 =head1 AUTHOR

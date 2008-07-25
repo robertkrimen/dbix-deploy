@@ -1,3 +1,3 @@
-DROP DATABASE [% connection.database %];
+DROP DATABASE [% user.database %];
 --
-DROP USER [% connection.username %];
+DROP USER [% user.username %];

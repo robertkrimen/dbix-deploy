@@ -54,19 +54,20 @@ Finally, any remaining arguments will be passed through to the configuration of 
 sub new {
     my $class = shift;
 
-    my $cfg = {};
-    $cfg = pop if @_ && ref $_[@_ - 1] eq "HASH";
+    my $configuration = {};
+    $configuration = pop if @_ && ref $_[@_ - 1] eq "HASH";
 
-    defined $_[0] ? $cfg->{user} = shift : shift if @_;
-    defined $_[0] ? $cfg->{superdatabase} = shift : shift if @_;
+    defined $_[0] ? $configuration->{user} = shift : shift if @_;
+    defined $_[0] ? $configuration->{superdatabase} = shift : shift if @_;
     if (@_) {
-        my $from = shift;
-        for (qw/setup teardown create populate/) {
-            $cfg->{$_} = "?$from" unless exists $cfg->{$_};
+        my $dir = shift;
+        for my $stage (qw/setup teardown create populate/) {
+            next if $configuration->{"skip_${stage}_file"};
+            unshift @{ $configuration->{$stage} }, "sqlfile:*?:$dir/$stage";
         }
     }
     
-    return DBIx::Deploy::Engine::MySQL->new(configure => $cfg);
+    return DBIx::Deploy::Engine::MySQL->new(configuration => $configuration);
 }
 
 1;

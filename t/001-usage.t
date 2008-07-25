@@ -29,15 +29,15 @@ SKIP: {
             },
 
             setup => \<<_END_,
-CREATE DATABASE [% connection.database %] WITH TEMPLATE template0;
+CREATE DATABASE [% user.database %] WITH TEMPLATE template0;
 --
-CREATE USER [% connection.username %] WITH PASSWORD '[% connection.password %]';
+CREATE USER [% user.username %] WITH PASSWORD '[% user.password %]';
 _END_
 
             teardown => \<<_END_,
-DROP DATABASE [% connection.database %];
+DROP DATABASE [% user.database %];
 --
-DROP USER [% connection.username %];
+DROP USER [% user.username %];
 _END_
 
             create => \<<_END_,

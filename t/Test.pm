@@ -76,7 +76,7 @@ sub can_PostgreSQL {
 package t::Test::PostgreSQL;
 
 sub deploy {
-    return DBIx::Deploy::Engine::PostgreSQL->new(configure => {
+    return DBIx::Deploy::Engine::PostgreSQL->new(configuration => {
 
     superdatabase => \@PostgreSQL_superdatabase,
 
@@ -87,16 +87,16 @@ sub deploy {
     },
 
     setup => [ \<<_END_ ],
-CREATE USER [% connection.username %] WITH PASSWORD '[% connection.password %]';
+CREATE USER [% user.username %] WITH PASSWORD '[% user.password %]';
 --
-CREATE DATABASE [% connection.database %] WITH TEMPLATE template0 OWNER = [% connection.username %];
+CREATE DATABASE [% user.database %] WITH TEMPLATE template0 OWNER = [% user.username %];
 --
 _END_
 
     teardown => [ \<<_END_ ],
-DROP DATABASE [% connection.database %];
+DROP DATABASE [% user.database %];
 --
-DROP USER [% connection.username %];
+DROP USER [% user.username %];
 _END_
 
     database_exists => "deploy_test",
@@ -118,7 +118,7 @@ _END_
 package t::Test::SQLite;
 
 sub deploy {
-    return DBIx::Deploy::Engine::SQLite->new(configure => {
+    return DBIx::Deploy::Engine::SQLite->new(configuration => {
 
     connection => {
         user => {
@@ -141,7 +141,7 @@ package t::Test::MySQL;
 
 
 sub deploy {
-    return DBIx::Deploy::Engine::MySQL->new(configure => {
+    return DBIx::Deploy::Engine::MySQL->new(configuration => {
 
     superdatabase => \@MySQL_superdatabase,
 
@@ -152,16 +152,16 @@ sub deploy {
     },
 
     setup => [ \<<_END_ ],
-CREATE DATABASE [% connection.database %];
+CREATE DATABASE [% user.database %];
 --
-GRANT ALL ON [% connection.database %].* TO [% connection.username %] IDENTIFIED BY '[% connection.password %]';
+GRANT ALL ON [% user.database %].* TO [% user.username %] IDENTIFIED BY '[% user.password %]';
 --
 _END_
 
     teardown => [ \<<_END_ ],
-DROP DATABASE [% connection.database %];
+DROP DATABASE [% user.database %];
 --
-DROP USER [% connection.username %];
+DROP USER [% user.username %];
 _END_
 
     create => \<<_END_,
@@ -197,16 +197,16 @@ __PACKAGE__->configure({
     },
 
     setup => [ \<<_END_ ],
-CREATE USER [% connection.username %] WITH PASSWORD '[% connection.password %]';
+CREATE USER [% user.username %] WITH PASSWORD '[% user.password %]';
 --
-CREATE DATABASE [% connection.database %] WITH TEMPLATE template0 OWNER = [% connection.username %];
+CREATE DATABASE [% user.database %] WITH TEMPLATE template0 OWNER = [% user.username %];
 --
 _END_
 
     teardown => [ \<<_END_ ],
-DROP DATABASE [% connection.database %];
+DROP DATABASE [% user.database %];
 --
-DROP USER [% connection.username %];
+DROP USER [% user.username %];
 _END_
 
     create => \<<_END_,
