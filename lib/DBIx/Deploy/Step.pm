@@ -24,13 +24,13 @@ sub BUILD {
     }
 }
 
-sub execute {
+sub run {
     my $self = shift;
     my $context = shift;
 
-    $context->stash->{step} = $self;
+    $context->step($self);
 
-    $self->command->execute($context);
+    $self->command->run($context);
 }
 
 1;

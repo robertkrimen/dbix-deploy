@@ -80,11 +80,9 @@ has arguments => qw/is ro required 1 isa HashRef/, default => sub { {} };
     }
 }
 
-sub execute {
+sub run {
     my $self = shift;
     my $context = shift;
-
-    $context->stash->{command} = $self;
 
     $self->code->($self, $context);
 }

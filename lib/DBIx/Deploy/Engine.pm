@@ -281,9 +281,7 @@ sub _run_script {
     my $stage = shift;
     my $stash = { @_ };
 
-    $stash->{stage} = $stage;
-    $stash->{engine} = $self;
-    my $context = DBIx::Deploy::Context->new(stash => $stash);
+    my $context = DBIx::Deploy::Context->new(engine => $self, stage => $stage, stash => $stash);
 
     my @script = sort { $a->rank <=> $b->rank } @{ $self->_script->{$stage} || [] };
 
@@ -297,7 +295,7 @@ sub _run_step {
     my $step = shift;
     my $context = shift;
 
-    $step->execute($context);
+    $step->run($context);
 }
 
 sub create {
@@ -357,11 +355,11 @@ sub _prepare_template_context {
     my $context = shift || {};
 
     if (blessed $context) {
-        my %context;
-        %context = %{ $context->stash };
-        $context{context} = $context;
-        $context{connection} = $context->connection;
-        $context = \%context;
+        my @context;
+        push @context, $_ => $context->$_ for qw/engine stage step command arguments/;
+        push @context, context => $context;
+        push @context, %{ $context->stash };
+        $context = { @context };
     }
     else {
         $context->{engine} ||= $self;
