@@ -7,12 +7,48 @@ use Moose;
 use DBI;
 use Carp::Clan;
 
+=head1 NAME
+
+DBIx::Deploy::Connection
+
+=head1 SYNPOSIS 
+
+    my $connection = $engine->connection->user
+
+    if ($connection->connectable) {
+    
+        ... Are we able to connect to the database? ...
+
+    }
+
+    my $dbh = $connection->dbh
+
+    ...
+
+    $connection->disconnect # Does $dbh->disconnect IF already connected, does nothing otherwise
+
+=head1 DESCRIPTION
+
+Represents a connection to a database, similar to a DBI handle
+
+=head1 METHODS
+
+=cut
+
 has engine => qw/is ro required 1 weak_ref 1/;
 has [qw/linkage source database username password attributes/] => qw/is ro/;
 has handle => qw/is ro lazy 1/, default => sub {
     my $self = shift;
     return $self->connect;
 };
+
+=head2 $connection->dbh
+
+=head2 $connection->open
+
+Return an active DBI handle for $connection, opening it first if necessary
+
+=cut
 
 sub dbh {
     return shift->handle;
@@ -21,6 +57,16 @@ sub dbh {
 sub open {
     return shift->handle;
 }
+
+=head2 $connection->disconnect
+
+=head2 $connection->close
+
+Perform a disconnect on the active DBI handle, if any
+
+If not already connected, then this method does nothing
+
+=cut
 
 sub close {
     my $self = shift;
@@ -33,6 +79,19 @@ sub close {
 sub disconnect {
     my $self = shift;
     return $self->close;
+}
+
+=head2 $connection->connect
+
+Return a separate/standalone DBI handle for use outside of $connection
+
+Do NOT use this if you want the handle for $connection (Use ->dbh instead)
+
+=cut
+
+sub connect {
+    my $self = shift;
+    return DBI->connect($self->information);
 }
 
 sub _parse_linkage {
@@ -129,7 +188,7 @@ sub run {
     for my $statement (@$statements) {
         eval {
             chomp $statement;
-            warn "$statement\n" if $ENV{TRACE_DBIX_DEPLOY};
+            warn "$statement\n" if $ENV{DBID_TRACE};
             $dbh->do($statement) or die $dbh->errstr;
         };
         if (my $error = $@) {
@@ -144,6 +203,16 @@ sub run {
     $dbh->disconnect;
 }
 
+=head2 $connection->connectable
+
+Return true if $connection was able to connect to the database successfully  
+
+Essentially just does a $dbh->ping
+
+This method will not open a persistent connection (like $connection->dbh does, etc.)
+
+=cut
+
 sub connectable {
     my $self = shift;
 
@@ -156,10 +225,48 @@ sub connectable {
     return $success;
 }
 
-sub connect {
-    my $self = shift;
-    return DBI->connect($self->information);
-}
+=head2 $connection->source
+
+Return the source for $connection
+
+    dbi:Pg:dbname=xyzzy
+
+=head2 $connection->database
+
+Return the database (name) for $connection
+
+    xyzzy
+
+=head2 $connection->username
+
+Return the username (if any) for $connection
+
+    Alice
+
+=head2 $connection->password
+
+Return the password (if any) for $connection
+
+    ******
+
+=head2 $connection->attributes
+
+Return the attributes (as a hash reference, if any) for $connection
+
+    {
+        RaiseError => 1,
+        ...,
+    }
+
+=head2 $connection->information
+
+Return the connection information for $connection, suitable for passing into DBI->connect 
+
+That is, will return <source>, <username>, <password>, <attributes>
+
+In scalar context will return a list reference instead of a list
+
+=cut
 
 sub information {
     my $self = shift;

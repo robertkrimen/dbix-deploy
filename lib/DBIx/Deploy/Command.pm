@@ -58,6 +58,12 @@ has arguments => qw/is ro required 1 isa HashRef/, default => sub { {} };
         },
 
         code => sub {
+            my $self = shift;
+            my $context = shift;
+
+            my $code = $self->arguments->{code};
+
+            $code->($context);
         },
 
     );

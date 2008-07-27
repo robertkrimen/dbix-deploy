@@ -27,8 +27,21 @@ DBIx::Deploy::Engine
 
 =head1 Connection specification
 
-A connection specification specifies the DBI connections used by the engine. The most basic format is an array reference of what
-you would pass to DBI->connect(...):
+A connection specification specifies the DBI connections used by the engine.
+
+The format is similar to the array reference of what you would pass to DBI->connect:
+
+    [ <$datasource>, <$username>, <$password>, <\%attributes> ]
+
+For DBIx::Deploy, however, <$datasource> should be in one of the following formats:
+
+    <databasename>|<driverhint> # "xyzzy|Pg", "xyzzy|SQLite", or "xyzzy|mysql"
+
+    <databasename>|<datasource> # xyzzy|dbi:Pg:dbname=%database
+
+Where C<%database> indicates where the database name preceding the pipe should be substituted.
+
+See L<DBIx::Deploy::Connection> for further usage
 
 =head1 Engine configuration
 
@@ -54,6 +67,8 @@ An engine configuration is a hash containing the following:
 
         <name> => Any other specially named connection you want to specify
 
+        See "Connection specification" for the format of the above
+
     }
 
     setup => A script for creating the actual database (e.g. createdb with PostgreSQL). Run via the C<superdatabase> connection.
@@ -64,7 +79,9 @@ An engine configuration is a hash containing the following:
 
     teardown => A script for tearing down the database (e.g. dropdb with PostgreSQL). Run via the C<superdatabase> connection.
 
-=head1 Scripting setup/create/populate/teardown
+    See "Script specification" for the format of setup/create/populate/teardown
+
+=head1 Script specification
 
 A script is a list (array reference) composed of steps. The steps are run in-order according to their rank.
 
@@ -85,17 +102,13 @@ A step can be:
 
 =head2 <file>
 
-Execute the SQL in the <file> using the current connection
-
-    ..., /some/path/extra.sql, ...
+Execute the SQL contained in <file>
 
 =head2 <directory>
 
-Execute the SQL in the file <directory>/<stage>{.sql, .tt2.sql, .tt.sql, .tt2, .tt} using the current connection
+Execute the SQL contained in <directory>/<stage>{.sql, .tt2.sql, .tt.sql, .tt2, .tt}
 
-    ..., /some/path/, ...
-
-    # If the current stage is "create", then the above will use /path/to/sql/create.sql (or one of the other extensions)
+If the current stage is "create", then the DBIx::Deploy will use <directory>/create.sql (or one of the other extensions)
 
 =head2 SCALAR
 
@@ -103,6 +116,8 @@ Execute the SQL contained in SCALAR using the current connection. Again, stateme
 beginning of the line (as described above).
 
 =head2 CODE
+
+Execute CODE with the first argument being L<DBIx::Deploy::Context>
 
 =head2 rank <rank>
 
@@ -117,22 +132,6 @@ Not a step per se. Will set the stage of the following steps to <stage> (which s
 Not a step per se. Will set the connection of the following steps to <connection> (usually C<user>, C<superuser>, or C<superdatabase>)
 
 =cut
-
-#    =head2 ~<connection> 
-
-#    Set the connection for the following STEP to be <connection>
-
-#    After the following STEP, the connection will revert to the default connection
-
-#        ..., ~user => \"CREATE TABLE ...", ...
-
-#        ..., ~superuser => \"CREATE TABLE ...", ...
-
-#    =head2 CODE
-
-#    Execute CODE, passing in: the engine,  the remaining script (as an array reference) 
-
-#    =head2 ARRAY
 
 sub driver_hint {
     my $self = shift;
