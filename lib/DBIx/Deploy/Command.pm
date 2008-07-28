@@ -6,6 +6,18 @@ use strict;
 use Moose;
 use DBIx::Deploy::Carp;
 
+=head1 NAME
+
+DBIx::Deploy::Command
+
+=head1 METHODS
+
+=head2 $command->arguments
+
+Returns a HASH reference specifying the arguments for $command
+
+=cut
+
 has name => qw/is ro required 1/;
 has code => qw/is ro isa CodeRef/, default => sub {
     my $self = shift;

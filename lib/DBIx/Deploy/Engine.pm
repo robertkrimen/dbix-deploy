@@ -25,24 +25,6 @@ __PACKAGE__->configure({
 
 DBIx::Deploy::Engine
 
-=head1 Connection specification
-
-A connection specification specifies the DBI connections used by the engine.
-
-The format is similar to the array reference of what you would pass to DBI->connect:
-
-    [ <$datasource>, <$username>, <$password>, <\%attributes> ]
-
-For DBIx::Deploy, however, <$datasource> should be in one of the following formats:
-
-    <databasename>|<driverhint> # "xyzzy|Pg", "xyzzy|SQLite", or "xyzzy|mysql"
-
-    <databasename>|<datasource> # xyzzy|dbi:Pg:dbname=%database
-
-Where C<%database> indicates where the database name preceding the pipe should be substituted.
-
-See L<DBIx::Deploy::Connection> for further usage
-
 =head1 Engine configuration
 
 An engine configuration is a hash containing the following:
@@ -81,11 +63,38 @@ An engine configuration is a hash containing the following:
 
     See "Script specification" for the format of setup/create/populate/teardown
 
+    database_exists => A code reference for determining whether the user database exists
+
+    schema_exists => A code reference for determining whether the schema in the user database exists
+
+    template => A hash reference containing configuration information to be passed to the Template Toolkit constructor
+
+=head1 Connection specification
+
+A connection specification specifies the DBI connections used by the engine.
+
+The format is similar to the array reference of what you would pass to DBI->connect:
+
+    [ <$datasource>, <$username>, <$password>, <\%attributes> ]
+
+For DBIx::Deploy, however, <$datasource> should be in one of the following formats:
+
+    <databasename>|<driverhint> # "xyzzy|Pg", "xyzzy|SQLite", or "xyzzy|mysql"
+
+    <databasename>|<datasource> # xyzzy|dbi:Pg:dbname=%database
+
+Where C<%database> indicates where the database name preceding the pipe should be substituted.
+
+If <$password> is the special value "<", then $engine will ask the user to enter the password via L<Term::Prompt>.
+You can use this mechanism to avoid having to embed sensitive passwords 
+
+See L<DBIx::Deploy::Connection> for further usage
+
 =head1 Script specification
 
 A script is a list (array reference) composed of steps. The steps are run in-order according to their rank.
 
-SQL in a step (from a SCALAR reference or a file) will be first processed via Template Toolkit (L<Template>). 
+SQL in a step (from a SCALAR reference or a file) will be first processed via L<Template> Toolkit.
 The result will be split using L<SQL::Script> with the following pattern: C</\n\s*-{2,4}\n/>
 
 That is, a newline, followed by optional whitespace, followed by 2 to 4 dashes and another newline. For example:
@@ -97,6 +106,25 @@ That is, a newline, followed by optional whitespace, followed by 2 to 4 dashes a
     CREATE TABLE artist (...)
 
     --
+
+A special context will be passed through for the processing of each template. Generally, it will contain:
+    
+        engine      # The L<DBIx::Deploy::Engine> object
+
+        stage       # The stage the template is being processed for
+
+        step        # The L<DBIx::Deploy::Step> object (containing the rank, etc.)
+
+        command     # The L<DBIx::Deploy::Command> object (containing the arguments, etc.)
+
+        arguments   # A hash reference (a shortcut for command.arguments)
+
+        context     # The L<DBIx::Deploy::Context> object
+
+        stash       # A hash reference (a shortcut for context.stash)
+
+        ...         # The stash of the context (that is, $context->stash is copied into the template context directly)
+                    # This will possibly override any of the above
 
 A step can be:
 
@@ -131,6 +159,8 @@ Not a step per se. Will set the stage of the following steps to <stage> (which s
 
 Not a step per se. Will set the connection of the following steps to <connection> (usually C<user>, C<superuser>, or C<superdatabase>)
 
+=head1 METHODS
+
 =cut
 
 sub driver_hint {
@@ -149,24 +179,39 @@ has template => qw/is ro required 1 lazy 1/, default => sub {
 
 has [qw/_script _connection _password/] => qw/is ro required 1 lazy 1 isa HashRef/, default => sub { {} };
 
+=head1 $engine->connection( <name> )
+
+Returns a L<DBIx::Deploy::Connection> for <name> 
+
+If <name> is not given or undef, then it's "user" by default
+
+=cut
+
 sub connection {
     my $self = shift;
     my $name = shift;
     $name = "user" unless defined $name;
+    my $safe = shift;
     if ($name =~ m/\|/) {
         my @name = split m/\|/, $name;
         for my $name (@name) {
-            next unless $self->configuration->{connection}->{$name};
-            return $self->connection($name);
+            next unless my $connection = $self->connection($name);
+            return $connection;
         }
+        return if $safe;
         croak "Unable to find a connection for $name";
     }
     return $self->_connection->{$name} ||= do {
         my $connection = $self->configuration->{connection}->{$name};
         if (! $connection && $name eq "superuser") {
-            $connection = [ qw/$user $superdatabase $superdatabase $user/ ],
+            unless ($self->connection(qw/user/) && $self->connection(qw/superdatabase/)) {
+                $connection = [ qw/$user $superdatabase $superdatabase $user/ ],
+            }
         }
-        croak "Don't have a connection definition for $name" unless $connection;
+        unless ($connection) {
+            return if $safe;
+            croak "Don't have a connection definition for $name";
+        }
         $self->configuration->{connection_class}->parse($connection, $self, $name);
     };
 }
@@ -268,6 +313,10 @@ sub _prepare_script {
     }
 }
 
+=head1 $engine->do
+
+=cut
+
 sub do {
     my $self = shift;
     my $step = @_ == 1 && ref $_[0] eq "HASH" ? shift : { @_ };
@@ -298,25 +347,70 @@ sub _run_step {
     $step->run($context);
 }
 
+=head1 $engine->create( default_connection => ..., raise_error => ... )
+
+Run the create script with the default connection of "user"
+
+=cut
+
 sub create {
     my $self = shift;
-    return $self->_run_script("create", ignore_missing => 1, default_connection => "user", @_);
+    return $self->_run_script("create", default_connection => "user", @_);
 }
+
+=head1 $engine->populate( default_connection => ..., raise_error => ... )
+
+Run the populate script with the default connection of "user"
+
+=cut
 
 sub populate {
     my $self = shift;
-    return $self->_run_script("populate", ignore_missing => 1, default_connection => "user", @_);
+    return $self->_run_script("populate", default_connection => "user", @_);
 }
+
+=head1 $engine->setup( default_connection => ..., raise_error => ... )
+
+Run the teardown script with a default connection of "superdatabase", "superuser", or "user" (depending on which is found first)
+
+=cut
 
 sub setup {
     my $self = shift;
-    return $self->_run_script("setup", ignore_missing => 1, default_connection => "superdatabase|superuser|user", @_);
+    return $self->_run_script("setup", default_connection => "superdatabase|superuser|user", @_);
 }
+
+=head1 $engine->teardown( default_connection => ..., raise_error => ... )
+
+Run the teardown script with a default connection of "superdatabase", "superuser", or "user" (depending on which is found first)
+
+By default, the teardown script will also not throw an exception on an error, continuing on until the script is complete. You can change
+this behavior by doing something like:
+
+    $engine->teardown( raise_error => 0, ... )
+
+=cut
 
 sub teardown {
     my $self = shift;
-    return $self->_run_script("teardown", raise_error => 0, ignore_missing => 1, default_connection => "superdatabase|superuser|user", @_);
+    return $self->_run_script("teardown", raise_error => 0, default_connection => "superdatabase|superuser|user", @_);
 }
+
+=head1 $engine->deploy
+
+Make a best effort to setup, create, and populate the database, returning connection information at the end
+
+If the database does NOT exist (tested via $engine->database_exists) then this method will run setup, create, and populate
+in order
+
+If the database does exist but the schema does NOT exist (tested via $engine->schema_exists) then this method will run create, and populate
+in order
+
+If $engine cannot tell if the database/schema exists either way then it will not run any scripts
+
+Finally, this method will return the connection information user connection, which you can then pass to DBI->connect or similar
+
+=cut
 
 sub deploy {
     my $self = shift;
@@ -337,16 +431,31 @@ sub deploy {
         }
     }
 
+    # TODO-b Should this disconnect everyone?
     $self->connection->disconnect;
 
     return $self->connection->information;
 }
 
+=head1 $engine->information ( ... )
+
+Returns the connection information for the user connection, which you can then pass to DBI->connect or similar
+
+This method will also attempt to deploy first, but you can supress this behavior by doing something like:
+
+    $engine->information(deploy => 0)
+
+Or even:
+
+    $engine->connection->information
+
+=cut
+
 sub information {
     my $self = shift;
-    local %_ = @_;
-    $_{deploy} = 1 unless exists $_{deploy};
-    $self->deploy if $_{deploy};
+    my %given = @_;
+    $given{deploy} = 1 unless exists $given{deploy};
+    $self->deploy if $given{deploy};
     return $self->connection->information;
 }
 
@@ -356,7 +465,7 @@ sub _prepare_template_context {
 
     if (blessed $context) {
         my @context;
-        push @context, $_ => $context->$_ for qw/engine stage step command arguments/;
+        push @context, $_ => $context->$_ for qw/engine stage step command arguments stash/;
         push @context, context => $context;
         push @context, %{ $context->stash };
         $context = { @context };
@@ -382,6 +491,19 @@ sub _process_template {
     return \$output;
 }
 
+=head1 $engine->run( <input>, <context> )
+
+This method is the mechanism by which $engine executes SQL contained in a file or SCALAR reference
+
+First, <input> is first processed through L<Template> Toolkit and then each resulting statement is passed
+through the connection specified in <context>
+
+Generally, you do not have to call this method directly.
+
+See "Script specification" for more information
+
+=cut
+
 sub run {
     my $self = shift;
     my $input = shift;
@@ -391,6 +513,18 @@ sub run {
     my $connection = $context->{connection};
     $connection->run(\@statements, $context);
 }
+
+=head1 $engine->generate( <input>, <context> )
+
+This method generates a list of discrete SQL statements given a file or SCALAR reference
+
+First, <input> is first processed through L<Template> Toolkit and the result is split via L<SQL::Script>
+
+Generally, you do not have to call this method directly.
+
+See "Script specification" for more information
+
+=cut
 
 sub generate {
     my $self = shift;
@@ -410,6 +544,19 @@ sub generate {
     return @statements;
 }
 
+=head1 $engine->database_exists
+
+Returns 1 if the database exists for the user connection
+
+Returns 0 if it does not
+
+Returns undef if it doesn't know either way
+
+You can supply your own detection mechanism by defining the configuration property C<database_exists>
+which should be a CODE reference accepting $engine as the first argument
+
+=cut
+
 sub database_exists {
     my $self = shift;
     if (ref $self->configuration->{database_exists} eq "CODE") {
@@ -422,6 +569,19 @@ sub _database_exists {
     # Placeholder to be overridden
     return undef;
 }
+
+=head1 $engine->schema_exists
+
+Returns 1 if the schema exists for the user connection
+
+Returns 0 if it does not
+
+Returns undef if it doesn't know either way
+
+You can supply your own detection mechanism by defining the configuration property C<schema_exists>
+which should be a CODE reference accepting $engine as the first argument
+
+=cut
 
 sub schema_exists {
     my $self = shift;
@@ -436,6 +596,14 @@ sub _schema_exists {
     return undef;
 }
 
+1;
+
+__END__
+
+=head1 $engine->schema_exists
+
+=cut
+
 sub ready {
     my $self = shift;
     if (ref $self->configuration->{ready} eq "CODE") {
@@ -447,10 +615,6 @@ sub _ready {
     my $self = shift;
     return $self->database_exists && $self->schema_exists;
 }
-
-1;
-
-__END__
 
 sub _run_from_file {
     my $self = shift;

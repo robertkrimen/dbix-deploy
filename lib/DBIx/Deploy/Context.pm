@@ -7,8 +7,6 @@ use strict;
 
 DBIx::Deploy::Context
 
-=head1 SYNPOSIS 
-
 =head1 DESCRIPTION
 
 A context for a running script. The context contains a reference to the engine, current stage and step, and a persistent stash for
@@ -23,27 +21,31 @@ use DBIx::Deploy::Carp;
 
 =head2 $context->engine
 
-Return the L<DBIx::Deploy::Engine> associated with $context
+Returns the L<DBIx::Deploy::Engine> associated with $context
 
 =head2 $context->stage
 
-Return the current stage, generally one of C<create>, C<populate>, C<setup>, or C<teardown>
+Returns the current stage, generally one of C<create>, C<populate>, C<setup>, or C<teardown>
 
 =head2 $context->step
 
-Return the current L<DBIx::Deploy::Step>
+Returns the current L<DBIx::Deploy::Step>
 
 =head2 $context->command
 
-Return the current L<DBIx::Deploy::Command>
+Returns the current L<DBIx::Deploy::Command>
 
 =head2 $context->arguments
 
-Return the arguments, a HASH reference, from $context->command->arguments
+Returns the arguments, a HASH reference, from $context->command->arguments
+
+=head2 $context->stash
+
+Returns a HASH reference which may used to storing/sharing data during script execution
 
 =head2 $context->connection
 
-Return the connection (L<DBIx::Deploy::Connection>) resolved from $context->engine->connection and $context->step->connection
+Returns the connection (L<DBIx::Deploy::Connection>) resolved from $context->engine->connection and $context->step->connection
 
 That is, the name given by $context->step->connection is passed through to $context->engine->connection and the result is returned
 

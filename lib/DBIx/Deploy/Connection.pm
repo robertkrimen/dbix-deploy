@@ -171,36 +171,55 @@ sub parse {
     return $class->new(engine => $engine, linkage => $linkage, source => $source, database => $database, username => $username, password => $password, attributes => $attributes, @_);
 }
 
+=head2 $connection->run( ... )
+
+If the first argument to C<run> is an ARRAY reference, then $connection will use $connection->dbh->do to execute
+each elements of <statements> (each of which should be individual SQL statements)
+
+Otherwise, the first argument should be a filename or a SCALAR reference containing SQL.
+In this case, $connection->engine->run( ... ) will be called to execute the generated SQL under $connection
+
+=cut
+
 sub run {
     my $self = shift;
-    my $statements = shift;
-    my $context = shift;
 
-    my $raise_error = 1;
-    $raise_error = $context->{raise_error} if exists $context->{raise_error};
+    if (ref $_[0] eq "ARRAY") {
+        my $statements = shift;
+        my $context = shift || {};
 
-    my $dbh = $self->connect;
-    unless ($dbh) {
-        no warnings 'uninitialized';
-        my @information = $self->information;
-        croak "Unable to connect with (@information): ", DBI->errstr unless $dbh;
-    }
-    for my $statement (@$statements) {
-        eval {
-            chomp $statement;
-            warn "$statement\n" if $ENV{DBID_TRACE};
-            $dbh->do($statement) or die $dbh->errstr;
-        };
-        if (my $error = $@) {
-            if ($raise_error) {
-                die $error;
-            }
-            else {
-                warn $error;
+        my $raise_error = 1;
+        $raise_error = $context->{raise_error} if exists $context->{raise_error};
+
+        my $dbh = $self->connect;
+        unless ($dbh) {
+            no warnings 'uninitialized';
+            my @information = $self->information;
+            croak "Unable to connect with (@information): ", DBI->errstr unless $dbh;
+        }
+        for my $statement (@$statements) {
+            eval {
+                chomp $statement;
+                warn "$statement\n" if $ENV{DBID_TRACE};
+                $dbh->do($statement) or die $dbh->errstr;
+            };
+            if (my $error = $@) {
+                if ($raise_error) {
+                    die $error;
+                }
+                else {
+                    warn $error;
+                }
             }
         }
+        $dbh->disconnect;
     }
-    $dbh->disconnect;
+    else {
+        my $input = shift;
+        my $context = shift || {};
+        $context->{connection} ||= $self;
+        return $self->engine->run($input, $context);
+    }
 }
 
 =head2 $connection->connectable
