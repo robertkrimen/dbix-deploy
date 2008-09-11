@@ -13,7 +13,7 @@ distclean tardist: Makefile
 test: Makefile
 	TEST_DBIx_Deploy_PostgreSQL_superdatabase=default TEST_DBIx_Deploy_PostgreSQL_user=default \
 	TEST_DBIx_Deploy_MySQL_superdatabase=default TEST_DBIx_Deploy_MySQL_user=default \
-	TEST_RELEASE=1 $(MAKE) -f $< $@
+    TEST_RELEASE=1 $(MAKE) -f $< $@
 #	TRACE_DBIX_DEPLOY=1 TEST_RELEASE=1 prove -v t/*.t
 
 Makefile: Makefile.PL

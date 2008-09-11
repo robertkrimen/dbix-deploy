@@ -5,6 +5,7 @@ use strict;
 use Test::More qw/no_plan/;
 use Test::Deep;
 use DBIx::Deploy::Engine::PostgreSQL;
+use DBIx::Deploy::Engine::MySQL;
 
 my $deploy = DBIx::Deploy::Engine::PostgreSQL->new(configure => {
 

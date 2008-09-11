@@ -18,12 +18,17 @@ Returns a HASH reference specifying the arguments for $command
 
 =cut
 
-has name => qw/is ro required 1/;
-has code => qw/is ro isa CodeRef/, default => sub {
+has name => qw/is ro required 1 default buh/;
+has code => qw/is ro lazy 1 isa CodeRef/, default => sub {
     my $self = shift;
     return $self->_code;
 };
 has arguments => qw/is ro required 1 isa HashRef/, default => sub { {} };
+
+sub BUILD {
+    my $self = shift;
+    my $given = shift;
+}
 
 {
     my %code = (
@@ -84,7 +89,7 @@ has arguments => qw/is ro required 1 isa HashRef/, default => sub { {} };
         my $self = shift;
         my $name = shift || $self->name;
 
-        croak "Wasn't given a name" unless $name;
+        confess "Wasn't given a name" unless $name;
 
         my $code = $code{$name} or croak "Couldn't find code for $name";
 

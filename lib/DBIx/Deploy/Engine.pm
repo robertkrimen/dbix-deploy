@@ -355,6 +355,7 @@ Run the create script with the default connection of "user"
 
 sub create {
     my $self = shift;
+    die;
     return $self->_run_script("create", default_connection => "user", @_);
 }
 
@@ -366,6 +367,7 @@ Run the populate script with the default connection of "user"
 
 sub populate {
     my $self = shift;
+    die;
     return $self->_run_script("populate", default_connection => "user", @_);
 }
 
@@ -393,6 +395,7 @@ this behavior by doing something like:
 
 sub teardown {
     my $self = shift;
+    die;
     return $self->_run_script("teardown", raise_error => 0, default_connection => "superdatabase|superuser|user", @_);
 }
 
@@ -660,7 +663,7 @@ sub run_script {
     my $name = shift;
     local %_ = @_;
 
-    my $default_connection = $_{connection} || $self->connection;
+    my $default_connection = $_{connection} || $_{default_connection} || $self->connection;
 
     my $script = delete $_{script};
     unless ($script) {
